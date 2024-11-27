@@ -1,1 +1,5 @@
-More examples coming soon.
+Examples here are written in form of new code being added to the code from previous examples. Most will be such at least.
+
+I recommend reading them from the beggining.
+
+More examples coming soon...
