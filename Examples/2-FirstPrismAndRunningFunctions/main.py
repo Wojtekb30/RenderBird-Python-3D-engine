@@ -15,7 +15,7 @@ cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),
 
 #Anyway, to render a cube with filled sides, let's set color_sides to True.
 #Uncomment the line below to use such a cube instead:
-cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),rotation_speed=(0,0,0),color_sides=True,color_back=(255,0,0,1),color_bottom=(0,255,0,1),color_front=(0,0,255,1),color_left=(255,0,128,1))
+#cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),rotation_speed=(0,0,0),color_sides=True,color_back=(255,0,0,1),color_bottom=(0,255,0,1),color_front=(0,0,255,1),color_left=(255,0,128,1))
 
 #Let's define an RunAfterTime object, we will use it later.
 waiting = r.RunAfterTime(5) #It is set to do something after 5 seconds since its initalization.
