@@ -1,6 +1,6 @@
 # RenderBirdCore
 
-![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)
+![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)
 
 **RenderBirdCore** is an easy-to-use 3D rendering engine for Python based on PyGame and OpenGL. It provides a simple and intuitive interface for creating and rendering 3D objects, managing cameras, and integrating 2D UI elements, making it ideal for developers looking to easily build simple 3D applications or games with Python.
 

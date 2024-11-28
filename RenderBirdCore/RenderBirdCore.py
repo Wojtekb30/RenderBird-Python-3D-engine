@@ -1,3 +1,5 @@
+#RenderBirdCore 0.1.2
+#Created by Wojtekb30 (Wojciech B), this version was created on 28.11.2024.
 import pygame
 from pygame.locals import *
 import sys
@@ -1060,8 +1062,7 @@ class RenderBirdCore:
             self.load_model()
             self.generate_texture_coordinates()
             self.create_buffers()
-            if self.texture_path and os.path.exists(self.texture_path):
-                self.load_texture()
+            self.load_texture()
 
         def load_model(self):
             """
@@ -1153,7 +1154,11 @@ class RenderBirdCore:
             Loads a texture image and binds it for OpenGL rendering.
             """
             try:
-                img = Image.open(self.texture_path).convert("RGBA")
+                if self.texture_path and os.path.exists(self.texture_path):
+                    img = Image.open(self.texture_path).convert("RGBA")
+                else:
+                    img = Image.new('RGBA', (1, 1), color=self.color)
+                #img.show()
                 img_data = img.tobytes("raw", "RGBA", 0, -1)
                 self.texture_id = glGenTextures(1)
                 glBindTexture(GL_TEXTURE_2D, self.texture_id)
@@ -1167,7 +1172,9 @@ class RenderBirdCore:
                 glBindTexture(GL_TEXTURE_2D, 0)
             except Exception as e:
                 self.texture_id = None
-                #print(f"Failed to load texture: {e}")
+                print("ERROR: Failed to load or set texture or color.")
+                print("Make sure that the texture file exists and/or color is a 4-number tuple (R G B and Transparency)")
+                print("Error code: "+str(e))
 
         def draw(self):
             """

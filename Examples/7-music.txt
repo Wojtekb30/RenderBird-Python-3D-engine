@@ -1,0 +1,9 @@
+This tutorial will be only in form of a text file.
+
+I would like to explain how to play sounds.
+
+First, create an instance of SoundManager, and provide it with argument telling how many sound channels to open.
+
+Then, use add_sound_to_memory to load a sound into memory of the manager. Determine a name for it which you will remember, file path and bool whenever to loop it.
+
+Then use play_sound or stop_sound provided with the name you've set to play and stop certain audio files.

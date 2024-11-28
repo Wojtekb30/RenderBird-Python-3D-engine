@@ -9,13 +9,12 @@ fpslimit = r.FPS_Limiter(50)
 r.set_background_color(176, 196, 222)
 
 #Let's define object that will be our cube:
-cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),rotation_speed=(0,0,0),color_sides=False,frame_color=(255,0,0,1))
+cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),color_sides=False,frame_color=(255,0,0,1))
 #Here we created a prism at position XYZ 0,0,-3, rotated 30 degrees in all angles, and with a red frame and no solid sides.
-#Keep argument rotation_speed as (0,0,0), it is sadly broken. Sorry!
 
-#Anyway, to render a cube with filled sides, let's set color_sides to True.
+#To render a cube with filled sides, let's set color_sides to True.
 #Uncomment the line below to use such a cube instead:
-#cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),rotation_speed=(0,0,0),color_sides=True,color_back=(255,0,0,1),color_bottom=(0,255,0,1),color_front=(0,0,255,1),color_left=(255,0,128,1))
+#cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),color_sides=True,color_back=(255,0,0,1),color_bottom=(0,255,0,1),color_front=(0,0,255,1),color_left=(255,0,128,1))
 
 #Let's define an RunAfterTime object, we will use it later.
 waiting = r.RunAfterTime(5) #It is set to do something after 5 seconds since its initalization.

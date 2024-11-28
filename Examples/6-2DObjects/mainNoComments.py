@@ -5,7 +5,7 @@ r = RenderBirdCore.RenderBirdCore(1280, 720, "Example 6")
 fpslimit = r.FPS_Limiter(50)
 r.set_background_color(176, 196, 222)
 
-cube = r.RectangularPrism(width=1, depth=1, position=(0, 0, -3), rotation=(30, 30, 30), rotation_speed=(0, 0, 0), color_sides=True, color_back=(255, 0, 0, 1), color_bottom=(0, 255, 0, 1), color_front=(0, 0, 255, 1), color_left=(255, 0, 128, 1))
+cube = r.RectangularPrism(width=1, depth=1, position=(0, 0, -3), rotation=(30, 30, 30), color_sides=True, color_back=(255, 0, 0, 1), color_bottom=(0, 255, 0, 1), color_front=(0, 0, 255, 1), color_left=(255, 0, 128, 1))
 waiting = r.RunAfterTime(5)
 
 rectangle = r.Rectangle_2D(x=10, y=20, width=30, height=50, fill_color=(128, 0, 128, 1), frame_color=(0, 0, 0, 1), frame_width=2)
