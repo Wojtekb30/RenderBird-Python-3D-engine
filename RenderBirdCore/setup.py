@@ -2,10 +2,10 @@ from setuptools import setup, find_packages
 
 setup(
     name="RenderBirdCore",
-    version="0.1.0",
+    version="0.1.1",
     author="Wojtekb30 (Wojciech B)",
     author_email="wojtekb30.player@gmail.com",
-    description="A easy to use 3D rendering engine for Python based on PyGame and OpenGL",
+    description="A easy to use object-based 3D rendering engine for Python based on PyGame and OpenGL",
     long_description=open("README.md", "r").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/Wojtekb30/RenderBird-Python-3D-engine",

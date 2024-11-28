@@ -9,6 +9,8 @@ from PIL import Image
 import numpy as np
 import os
 import struct
+from OpenGL.arrays import vbo
+from io import StringIO
 
 class RenderBirdCore:
     def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45, camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0):
@@ -690,7 +692,7 @@ class RenderBirdCore:
         """
         A 3D rectangular prism object.
         """
-        def __init__(self, width=1, height=1, depth=1, position=(0, 0, 0), rotation=(0, 0, 0), rotation_speed=(0, 0, 0),
+        def __init__(self, width=1, height=1, depth=1, position=(0, 0, 0), rotation=(0, 0, 0),
                      color_sides=False, frame_color=(1, 1, 1, 1),
                      color_front=(1, 1, 1, 1), color_back=(1, 1, 1, 1), color_left=(1, 1, 1, 1),
                      color_right=(1, 1, 1, 1), color_top=(1, 1, 1, 1), color_bottom=(1, 1, 1, 1)):
@@ -700,16 +702,15 @@ class RenderBirdCore:
             :param depth: Depth
             :param position: Position in 3D space (for example (0,0,0))
             :param rotation: Initial rotation in 3D space (for example (0,0,0))
-            :param rotation_speed: Rotation speed when rotating (leave (0,0,0))
             :param color_sides: If False, use frame_color to set color of the frame. Otherwise, the other arguments will be used.
-            All color arguments expect a tuple with 4 numbers (R, G, B, T).
+            All color arguments expect a tuple with 4 numbers (Red, Green, Blue, Transparency).
             """
             self.width = width
             self.height = height
             self.depth = depth
-            self.position = list(position)  # Ensure it's always a list
+            self.position = list(position)  
             self.rotation = list(rotation)  # (pitch, yaw, roll) angles
-            self.rotation_speed = list(rotation_speed)  # Speed of rotation for each axis
+            self.rotation_speed = [0,0,0]  
             self.color_sides = color_sides
             self.frame_color = frame_color
             colors = {
@@ -1031,34 +1032,34 @@ class RenderBirdCore:
             self.rotation[1] += self.rotation_speed[1]
             self.rotation[2] += self.rotation_speed[2]
     '''
-    
+
     class Model3D_STL:
         def __init__(self, stl_path, texture_path=None, color=(1, 1, 1, 1),
                      position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0)):
             """
             Loads and renders a 3D model from an STL file with optional texture or plain color.
-            Might have bad performance with complex 3D objects and big texture files.
-            I tested it only with a low-poly 3D model and small PNG texture.
-            Will do further tests and eventually improve preformance in the future.
-            
-            :param stl_path: Path to the STL file.
-            :param texture_path: Path to the texture image. If None, a plain color is used.
-            :param color: RGBA color tuple (0-1 range) for the model when no texture is applied.
-            :param position: Tuple (x, y, z) for the model's position in the world.
-            :param scale: Scaling factor for the model.
-            :param rotation: Tuple (pitch, yaw, roll) angles in degrees.
+            :param stl_path: Path to the .STL 3D model file
+            :param texture_path: Path to texture image file to use, set None for plain color.
+            :param color: Plain color to use if there is no image texture used.
+            :param position: X Y Z position in the world, tuple.
+            :param scale: Scale of the rendered 3D model in %
+            :param rotation: Tuple determining how to rotate the 3D model in degrees.
             """
             self.stl_path = stl_path
             self.texture_path = texture_path
             self.color = color
             self.position = list(position)
-            self.scale = scale
+            self.scale = scale / 100.0
             self.rotation = list(rotation)
             self.vertices = []
             self.normals = []
             self.faces = []
+            self.texture_coords = []  
             self.texture_id = None
+
             self.load_model()
+            self.generate_texture_coordinates()
+            self.create_buffers()
             if self.texture_path and os.path.exists(self.texture_path):
                 self.load_texture()
 
@@ -1072,8 +1073,6 @@ class RenderBirdCore:
                     header = file.read(80)
                     try:
                         num_triangles = struct.unpack('<I', file.read(4))[0]
-                        # Binary STL
-                        #print(f"Detected binary STL with {num_triangles} triangles.")
                         for _ in range(num_triangles):
                             data = file.read(50)  # 12 floats: normal (3), vertices (9), 2-byte attribute
                             if len(data) < 50:
@@ -1083,13 +1082,12 @@ class RenderBirdCore:
                             v1 = unpacked[3:6]
                             v2 = unpacked[6:9]
                             v3 = unpacked[9:12]
-                            self.normals.append(normal)
+                            self.normals.append(self.normalize_vector(normal))
                             self.faces.append((len(self.vertices), len(self.vertices) + 1, len(self.vertices) + 2))
                             self.vertices.extend([v1, v2, v3])
                     except struct.error:
-                        # ASCII STL
+                        # ASCII STL handling
                         file.seek(0)
-                        from io import StringIO
                         content = file.read().decode('utf-8', errors='ignore')
                         sio = StringIO(content)
                         current_normal = None
@@ -1098,7 +1096,7 @@ class RenderBirdCore:
                             if not parts:
                                 continue
                             if parts[0] == 'facet' and parts[1] == 'normal':
-                                current_normal = list(map(float, parts[2:5]))
+                                current_normal = self.normalize_vector(list(map(float, parts[2:5])))
                             elif parts[0] == 'vertex':
                                 vertex = list(map(float, parts[1:4]))
                                 self.vertices.append(vertex)
@@ -1107,10 +1105,48 @@ class RenderBirdCore:
                                     idx = len(self.vertices) - 3
                                     self.faces.append((idx, idx + 1, idx + 2))
                                     self.normals.append(current_normal)
-                #print(f"Loaded {len(self.faces)} faces from STL file '{self.stl_path}'.")
             except Exception as e:
-                #print(f"Failed to load STL file '{self.stl_path}': {e}")
-                raise SystemExit(e)
+                raise SystemExit(f"Failed to load STL file '{self.stl_path}': {e}")
+
+        def normalize_vector(self, vector):
+            """Normalize a 3D vector to unit length."""
+            length = math.sqrt(sum(coord ** 2 for coord in vector))
+            if length > 0:
+                return [coord / length for coord in vector]
+            return vector
+
+        def generate_texture_coordinates(self):
+            """
+            Generates UV texture coordinates for the model.
+            Maps vertices to a normalized space using the bounding box.
+            """
+            if not self.vertices:
+                raise ValueError("No vertices found. Ensure the model is loaded before generating texture coordinates.")
+
+            min_x = min(vertex[0] for vertex in self.vertices)
+            max_x = max(vertex[0] for vertex in self.vertices)
+            min_y = min(vertex[1] for vertex in self.vertices)
+            max_y = max(vertex[1] for vertex in self.vertices)
+
+            for vertex in self.vertices:
+                u = (vertex[0] - min_x) / (max_x - min_x) if max_x != min_x else 0
+                v = (vertex[1] - min_y) / (max_y - min_y) if max_y != min_y else 0
+                self.texture_coords.append((u, v))
+
+        def create_buffers(self):
+            """
+            Creates Vertex Buffer Objects (VBOs) for efficient rendering.
+            """
+            vertex_data = []
+            for i, vertex in enumerate(self.vertices):
+                u, v = self.texture_coords[i]
+                vertex_data.extend([*vertex, u, v])  # Add position and UV
+
+            vertex_data = np.array(vertex_data, dtype=np.float32)
+            index_data = np.array([index for face in self.faces for index in face], dtype=np.uint32)
+
+            self.vertex_vbo = vbo.VBO(vertex_data)
+            self.index_vbo = vbo.VBO(index_data, target=GL_ELEMENT_ARRAY_BUFFER)
 
         def load_texture(self):
             """
@@ -1121,47 +1157,47 @@ class RenderBirdCore:
                 img_data = img.tobytes("raw", "RGBA", 0, -1)
                 self.texture_id = glGenTextures(1)
                 glBindTexture(GL_TEXTURE_2D, self.texture_id)
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+
+                glGenerateMipmap(GL_TEXTURE_2D)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0,
-                             GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+
                 glBindTexture(GL_TEXTURE_2D, 0)
-                #print(f"Loaded texture from '{self.texture_path}'.")
             except Exception as e:
-                #print(f"Failed to load texture '{self.texture_path}': {e}")
                 self.texture_id = None
+                #print(f"Failed to load texture: {e}")
 
         def draw(self):
-            """Renders the STL model with texture or plain color."""
+            """
+            Renders the STL model with texture or plain color.
+            """
             glPushMatrix()
             glTranslatef(*self.position)
             glScalef(self.scale, self.scale, self.scale)
-            glRotatef(self.rotation[0], 1, 0, 0)  # Pitch
-            glRotatef(self.rotation[1], 0, 1, 0)  # Yaw
-            glRotatef(self.rotation[2], 0, 0, 1)  # Roll
+            glRotatef(self.rotation[0], 1, 0, 0)
+            glRotatef(self.rotation[1], 0, 1, 0)
+            glRotatef(self.rotation[2], 0, 0, 1)
 
             if self.texture_id:
                 glEnable(GL_TEXTURE_2D)
                 glBindTexture(GL_TEXTURE_2D, self.texture_id)
-            else:
-                glColor4f(*self.color)
 
-            glBegin(GL_TRIANGLES)
-            for i, face in enumerate(self.faces):
-                normal = self.normals[i]
-                glNormal3fv(normal)
-                if self.texture_id:
-                    # Simple planar mapping: Project vertices onto XY plane for texture coordinates
-                    for vertex_idx in face:
-                        vertex = self.vertices[vertex_idx]
-                        u = (vertex[0] - min(v[0] for v in self.vertices)) / (max(v[0] for v in self.vertices) - min(v[0] for v in self.vertices)) if max(v[0] for v in self.vertices) != min(v[0] for v in self.vertices) else 0
-                        v_coord = (vertex[1] - min(v[1] for v in self.vertices)) / (max(v[1] for v in self.vertices) - min(v[1] for v in self.vertices)) if max(v[1] for v in self.vertices) != min(v[1] for v in self.vertices) else 0
-                        glTexCoord2f(u, v_coord)
-                        glVertex3fv(vertex)
-                else:
-                    for vertex_idx in face:
-                        glVertex3fv(self.vertices[vertex_idx])
-            glEnd()
+            self.vertex_vbo.bind()
+            glEnableClientState(GL_VERTEX_ARRAY)
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+
+            glVertexPointer(3, GL_FLOAT, 20, self.vertex_vbo)
+            glTexCoordPointer(2, GL_FLOAT, 20, self.vertex_vbo + 12)
+
+            self.index_vbo.bind()
+            glDrawElements(GL_TRIANGLES, len(self.faces) * 3, GL_UNSIGNED_INT, None)
+
+            self.vertex_vbo.unbind()
+            self.index_vbo.unbind()
+            glDisableClientState(GL_VERTEX_ARRAY)
+            glDisableClientState(GL_TEXTURE_COORD_ARRAY)
 
             if self.texture_id:
                 glBindTexture(GL_TEXTURE_2D, 0)
@@ -1184,6 +1220,8 @@ class RenderBirdCore:
         def update_rotation(self):
             """Applies continuous rotation based on current rotation angles."""
             self.rotate()
+
+
 
     #2D Objects:
     
@@ -1473,16 +1511,16 @@ class RenderBirdCore:
             self.loop = {}
             self.channels = [pygame.mixer.Channel(i) for i in range(channel_amount)]
             self.channel_amount = channel_amount
-        def add_sound(self, name: str, ogg_file_path: str, loop=False):
+        def add_sound_to_memory(self, name: str, file_path: str, loop=False):
             """
             Adds a new sound to the manager.
             
             
             :param name: The name of the sound, string. Any you want.
-            :param ogg_file_path: The file path of the sound file, must be OGG sound file.
+            :param file_path: The file path of the sound file, use whatever format PyGame and your system support.
             :param loop: Whether the sound should loop (for example background music) or not (for example sound effect), bool.
             """
-            self.sounds[name] = pygame.mixer.Sound(ogg_file_path)
+            self.sounds[name] = pygame.mixer.Sound(file_path)
             self.is_playing[name] = False
             self.loop[name] = loop
 
