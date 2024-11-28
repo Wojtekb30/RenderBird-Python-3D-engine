@@ -12,12 +12,12 @@ fpslimit = r.FPS_Limiter(50)
 r.set_background_color(176, 196, 222)
 
 #Let's define the object. We can use heart 3D model I created:
-heart = r.Model3D_STL(stl_path="heart.stl", texture_path=None, color=(255,0,0,1),position=(0,0,-5),scale=5)
+heart = r.Model3D_STL(stl_path="heart.stl", texture_path=None, color=(255,0,0,255),position=(0,0,-5),scale=5)
 #Remember to first set tiny scale like 5, otherwise the model may render huge.
 
 #We can also use a image texture instead of plain color.
 #This definition will use rainbow texture I made. Uncomment it to see rainbow heart:
-#heart = r.Model3D_STL(stl_path="heart.stl", texture_path="rainbow.png", color=(255,0,0,1),position=(0,0,-5),scale=5)
+#heart = r.Model3D_STL(stl_path="heart.stl", texture_path="rainbow.png", color=(255,0,0,255),position=(0,0,-5),scale=5)
 
 while r.running == True:
     fpslimit.code_start_point()
