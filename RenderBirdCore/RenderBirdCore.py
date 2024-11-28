@@ -17,7 +17,7 @@ from io import StringIO
 class RenderBirdCore:
     def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45, camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0):
         pygame.init()
-        RENDERBIRD_VERSION = "0.1.0"
+        RENDERBIRD_VERSION = "0.1.2"
         self.window_size_x = window_size_x
         self.window_size_y = window_size_y
         self.screen = pygame.display.set_mode((self.window_size_x, self.window_size_y), DOUBLEBUF | OPENGL)
