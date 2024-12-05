@@ -529,6 +529,41 @@ class RenderBirdCore:
         glEnd()
         glPopMatrix()
 
+    def normalize_color(self, tuple_4_values):
+        """
+        Divides every color value in the tuple by 255, ensuring compatiblity with OpenGL.
+        
+        :param tuple_4_values: Tuple with 4 values for Red, Green, Blue and Transparency.
+        
+        Returns normalized tuple.
+        """
+        r = float(tuple_4_values[0]/255)
+        g = float(tuple_4_values[1]/255)
+        b = float(tuple_4_values[2]/255)
+        t = float(tuple_4_values[3]/255)
+        return (r,g,b,t)
+    
+    def denormalize_color(self, tuple_4_values):
+        """
+        Multiplies every color value in the tuple by 255, ensuring compatiblity with 2D elements and STL 3D model coloring.
+        
+        :param tuple_4_values: Tuple with 4 values for Red, Green, Blue and Transparency.
+        
+        Returns de-normalized tuple.
+        """
+        r = int(tuple_4_values[0]*255)
+        g = int(tuple_4_values[1]*255)
+        b = int(tuple_4_values[2]*255)
+        t = int(tuple_4_values[3]*255)
+        return (r,g,b,t)
+        
+    def calculate_side_from_middle(self, point, side_length):
+        a = side_length/2
+        return point - a
+    
+    def calculate_middle_from_side(self, point, side_length):
+        a = side_length/2
+        return point + a
 
     class FPS_Limiter:
         """
@@ -1072,6 +1107,10 @@ class RenderBirdCore:
                 glVertex2f(self.x, self.y + self.height)
                 glEnd()
                 
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            return self.x <= mouse_x <= self.x + self.width and self.y <= mouse_y <= self.y + self.height
+                
 
     
     class Circle_2D:
@@ -1118,6 +1157,11 @@ class RenderBirdCore:
                     angle = 2 * math.pi * i / self.segments
                     glVertex2f(self.x + math.cos(angle) * self.radius, self.y + math.sin(angle) * self.radius)
                 glEnd()
+                
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            distance_squared = (mouse_x - self.x) ** 2 + (mouse_y - self.y) ** 2
+            return distance_squared <= self.radius ** 2
     
     
     class Image_2D:
@@ -1209,10 +1253,107 @@ class RenderBirdCore:
 
             glBindTexture(GL_TEXTURE_2D, 0)
             glDisable(GL_TEXTURE_2D)
+            
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            return self.x <= mouse_x <= self.x + self.width and self.y <= mouse_y <= self.y + self.height
+
+    class Image_2D_PIL:
+        """Represents an image object for 2D rendering using OpenGL, but uses PIL image variable instead of file path."""
+        def __init__(self, pil_image_variable, x, y, width=None, height=None, rotation=0):
+            """
+            Initialize the Image with the image path, position, and optional dimensions.
+
+            :param pil_image_variable: PIL Image (not path to an image, but image saved into a PIL image variable).
+            :param x: X-coordinate of the top-left corner.
+            :param y: Y-coordinate of the top-left corner.
+            :param width: Width to scale the image to, optional.
+            :param height: Height to scale the image to, optional.
+            :param rotation: Rotate image within its rendering zone.
+            """
+            self.pil_image = pil_image_variable
+            self.x = x
+            self.y = y
+            self.rotation = rotation
+
+            image = self.pil_image.convert("RGBA")
+            image = image.rotate(180)
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            if width and height:
+                image = image.resize((width, height))
+                self.width = width
+                self.height = height
+            else:
+                self.width, self.height = image.size
+
+            self.image_data = image.tobytes("raw", "RGBA", 0, -1)
+
+            self.texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.texture_id)
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+            # Upload the texture data to OpenGL
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGBA,
+                self.width,
+                self.height,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                self.image_data
+            )
+
+            glBindTexture(GL_TEXTURE_2D, 0)  # Unbind the texture
+
+        def move(self, x, y):
+            self.x += x
+            self.y += y
+
+        def setlocation(self, x, y):
+            self.x = x
+            self.y = y
+
+        def draw(self, app):
+            """Draw the image as a textured quad using OpenGL."""
+            glEnable(GL_TEXTURE_2D)
+            glBindTexture(GL_TEXTURE_2D, self.texture_id)
+            glColor4f(1, 1, 1, 1) 
+
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 0)
+            glVertex2f(self.x, self.y)
+
+            glTexCoord2f(1, 0)
+            glVertex2f(self.x + self.width, self.y)
+
+            glTexCoord2f(1, 1)
+            glVertex2f(self.x + self.width, self.y + self.height)
+
+            glTexCoord2f(0, 1)
+            glVertex2f(self.x, self.y + self.height)
+            glEnd()
+
+            glBindTexture(GL_TEXTURE_2D, 0)
+            glDisable(GL_TEXTURE_2D)
+
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            return self.x <= mouse_x <= self.x + self.width and self.y <= mouse_y <= self.y + self.height
+
 
 
     #2D rendering methods
-            
+        
+    def get_mouse_position(self):
+        """Get current position of the mouse, return 2 variables = x and y."""
+        x, y = pygame.mouse.get_pos()
+        return x, y
             
     def set_perspective(self):
         """Set up the perspective projection for 3D rendering."""

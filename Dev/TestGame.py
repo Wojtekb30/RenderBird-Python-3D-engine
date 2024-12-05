@@ -2,6 +2,8 @@ from RenderBirdCore import *
 
 import pygame
 
+from PIL import Image
+
 r = RenderBirdCore(1280, 720)
 
 fpslimit = r.FPS_Limiter(50)
@@ -13,6 +15,13 @@ r.set_background_color(176, 196, 222)
 cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),color_sides=True,color_back=(255,0,0,1),color_bottom=(0,255,0,1),color_front=(0,0,255,1),color_left=(255,0,128,1))
 
 waiting = r.RunAfterTime(5)
+
+img = Image.open('text.png')
+
+imagepil = r.Image_2D_PIL(img,0,0,100,100)
+#imagenormal = r.Image_2D("text.png",100,100,20,40)
+rect = r.Rectangle_2D(100,0,10,10,(255,0,255,255))
+circ = r.Circle_2D(200,100,30,(1,1,1,255))
 
 def rotate_cube_function():
     cube.rotate(0.1, 0, 0)
@@ -48,7 +57,7 @@ while r.running == True:
     if r.key_pressed(pygame.K_RIGHT):
         r.camera.rotate(0,0.8,0)
         
-    #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertially=False,mouse_cursor_visible=True) 
+    r.render_2d_objects([imagepil, rect, circ])
     
     r.update_display()
     r.handle_close_event_direct()
