@@ -1,8 +1,10 @@
-import RenderBirdCore
-
+from RenderBirdCore import *
+import cv2
 import pygame
 
-r = RenderBirdCore.RenderBirdCore(1280, 720, "Example 3")
+from PIL import Image
+
+r = RenderBirdCore(1280, 720, camera_maximum_render_distance=1000)
 
 fpslimit = r.FPS_Limiter(50)
 
@@ -14,13 +16,46 @@ cube = r.RectangularPrism(width=1,depth=1,position=(0,0,-3),rotation=(30,30,30),
 
 waiting = r.RunAfterTime(5)
 
+img = Image.open('text.png')
+
+
+#imagenormal = r.Image_2D("text.png",100,100,20,40)
+rect = r.Rectangle_2D(100,0,10,10,(255,0,255,255))
+circ = r.Circle_2D(200,100,30,(1,1,1,255))
+
+cap = cv2.VideoCapture(0)
+
 def rotate_cube_function():
-    cube.rotate(0.1, 0, 0)
+    cube.rotate(0.5, 0, 0)
+
+
+
+heart_rotation = [0,0,0]
+heart2_rotation = [0,0,0]
+heart3_rotation = [0,0,0]
 
 while r.running == True:
     fpslimit.code_start_point()
     r.clear_screen()
     
+    
+    ret, frame = cap.read()
+    
+    
+    #imagepil = r.Image_2D_PIL(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),0,0,200,100)
+    heart = r.Model3D_STL("heart.stl",None,(255,0,0,1),(0,0,-10),4,heart_rotation,True,Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+    heart.rotate(0.5,0.5,0.5)
+    heart_rotation = heart.rotation
+    
+    heart2 = r.Model3D_STL("heart.stl",None,(1,1,1,1),(5,0,-10),4,heart_rotation,True,Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+    heart2.rotate(0.5,0.5,0.5)
+    heart2_rotation = heart.rotation
+    
+    heart3 = r.Model3D_STL("heart.stl",None,(1,1,1,1),(-5,0,-10),4,heart_rotation,True,Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+    heart3.rotate(0.5,0.5,0.5)
+    heart3_rotation = heart.rotation
+    
+    print(heart_rotation)
     cube.draw()
     
     waiting.run_after_time(rotate_cube_function)
@@ -48,8 +83,12 @@ while r.running == True:
     if r.key_pressed(pygame.K_RIGHT):
         r.camera.rotate(0,0.8,0)
         
-    #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertially=False,mouse_cursor_visible=True) 
+    heart.draw()
+    heart2.draw()
+    heart3.draw()
     
+    r.render_2d_objects([rect, circ])
+    #imagepil.draw(r)
     r.update_display()
     r.handle_close_event_direct()
     fpslimit.code_end_point_limit_framerate()

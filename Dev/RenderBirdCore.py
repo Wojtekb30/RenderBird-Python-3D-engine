@@ -866,7 +866,7 @@ class RenderBirdCore:
 
     class Model3D_STL:
         def __init__(self, stl_path, texture_path=None, color=(1, 1, 1, 1),
-                     position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0)):
+                     position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0), use_pil_texture = False, pil_image_variable = None):
             """
             Loads and renders a 3D model from an STL file with optional texture or plain color.
             :param stl_path: Path to the .STL 3D model file
@@ -875,6 +875,8 @@ class RenderBirdCore:
             :param position: X Y Z position in the world, tuple.
             :param scale: Scale of the rendered 3D model in %
             :param rotation: Tuple determining how to rotate the 3D model in degrees.
+            :param use_pil_texture: Default false, determines if the program should use texture from file or PIL image variable.
+            :param pil_image_variable: Provide a PIL Image variable here (not file path).
             """
             self.stl_path = stl_path
             self.texture_path = texture_path
@@ -887,7 +889,9 @@ class RenderBirdCore:
             self.faces = []
             self.texture_coords = []  
             self.texture_id = None
-
+            self.use_pil_texture = use_pil_texture
+            self.pil_image_variable = pil_image_variable
+            
             self.load_model()
             self.generate_texture_coordinates()
             self.create_buffers()
@@ -986,7 +990,10 @@ class RenderBirdCore:
                 if self.texture_path and os.path.exists(self.texture_path):
                     img = Image.open(self.texture_path).convert("RGBA")
                 else:
-                    img = Image.new('RGBA', (1, 1), color=self.color)
+                    if self.use_pil_texture == True and self.pil_image_variable != None:
+                        img = self.pil_image_variable
+                    else:
+                        img = Image.new('RGBA', (1, 1), color=self.color)
                 #img.show()
                 img_data = img.tobytes("raw", "RGBA", 0, -1)
                 self.texture_id = glGenTextures(1)
@@ -1017,6 +1024,7 @@ class RenderBirdCore:
             glRotatef(self.rotation[2], 0, 0, 1)
 
             if self.texture_id:
+                glColor4f(1, 1, 1, 1)
                 glEnable(GL_TEXTURE_2D)
                 glBindTexture(GL_TEXTURE_2D, self.texture_id)
 
@@ -1348,10 +1356,10 @@ class RenderBirdCore:
 
 
 
-    #2D rendering methods
+    #2D related methods
         
     def get_mouse_position(self):
-        """Get current position of the mouse, return 2 variables = x and y."""
+        """Get current position of the mouse, return 2 variables - x and y."""
         x, y = pygame.mouse.get_pos()
         return x, y
             
