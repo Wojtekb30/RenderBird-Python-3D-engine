@@ -57,7 +57,7 @@ while r.running == True:
         r.camera.rotate(0,0.8,0)
         
     #We can also add looking around with mouse. Uncomment it to try it out!
-    #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertially=False,mouse_cursor_visible=True) 
+    #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertically=False,mouse_cursor_visible=True) 
     
     r.update_display()
     r.handle_close_event_direct()
