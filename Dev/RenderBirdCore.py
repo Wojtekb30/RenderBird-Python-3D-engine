@@ -248,34 +248,33 @@ class RenderBirdCore:
             
             self.translate(dx, dy, dz)
         
+        
+        
+        
         def look_around(self, delta_x, delta_y, sensitivity=0.1, reverse_horiz=False, reverse_vert=False):
             """
             Adjusts the camera's yaw and pitch based on mouse movement.
-    
-            :param delta_x: Mouse movement in the X-direction.
-            :param delta_y: Mouse movement in the Y-direction.
-            :param sensitivity: Sensitivity factor for mouse movement.
-            :param reverse_horiz: If True, reverses the horizontal look direction.
-            :param reverse_vert: If True, reverses the vertical look direction.
             """
-            delta_x *= sensitivity
-            delta_y *= sensitivity
-            delta_y = -delta_y
-            
-            if reverse_horiz:
-                delta_x = -delta_x
-            if reverse_vert:
-                delta_y = -delta_y
-    
+            delta_x = delta_x * sensitivity * (-1 if reverse_horiz else 1)
+            delta_y = delta_y * sensitivity * (-1 if reverse_vert else 1)
             self.rotation[1] += delta_x  # Yaw
-            self.rotation[0] += delta_y  # Pitch
-    
-            self.rotation[0] = max(-90, min(90, self.rotation[0]))
-    
-            self.update_forward_vector()
+            self.rotation[0] = max(-90, min(90, self.rotation[0] + delta_y))  # Pitch
+            pitch_rad = math.radians(self.rotation[0])
+            yaw_rad = math.radians(self.rotation[1])
+            cos_pitch = math.cos(pitch_rad)
+            sin_pitch = math.sin(pitch_rad)
+            cos_yaw = math.cos(yaw_rad)
+            sin_yaw = math.sin(yaw_rad)
+            self.forward_vector = [
+                cos_pitch * sin_yaw,
+                sin_pitch,
+                -cos_pitch * cos_yaw
+            ]
+
             self.setup_perspective()
+
     
-        def use_mouse_camera_controls(self, window_size_x: int, window_size_y: int, sensitivity=0.1, sensitivity_factor=1, reverse_horizontally=False, reverse_vertially=False, mouse_cursor_visible=False):
+        def use_mouse_camera_controls(self, window_size_x: int, window_size_y: int, sensitivity=0.1, sensitivity_factor=1.0,reverse_horizontally=False, reverse_vertically=False, mouse_cursor_visible=False):
             """
             Implements mouse-based camera controls by capturing mouse movement and adjusting the camera's orientation.
     
@@ -284,15 +283,23 @@ class RenderBirdCore:
             :param sensitivity: Sensitivity factor for mouse movement.
             :param sensitivity_factor: Additional sensitivity scaling factor.
             :param reverse_horizontally: If True, reverses horizontal mouse movement.
-            :param reverse_vertially: If True, reverses vertical mouse movement.
+            :param reverse_vertically: If True, reverses vertical mouse movement.
             :param mouse_cursor_visible: If True, makes the mouse cursor visible.
             """
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            delta_x = (mouse_x - window_size_x / 2) / sensitivity_factor
-            delta_y = (mouse_y - window_size_y / 2) / sensitivity_factor
-            pygame.mouse.set_pos(window_size_x // 2, window_size_y // 2)
-            pygame.mouse.set_visible(mouse_cursor_visible)
-            self.look_around(delta_x, delta_y, sensitivity, reverse_horizontally, reverse_vertially)
+            #pygame.event.set_grab(True) 
+            pygame.mouse.set_visible(mouse_cursor_visible) 
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEMOTION:
+                    delta_x, delta_y = event.rel 
+                    self.look_around(
+                        delta_x * sensitivity,
+                        delta_y * sensitivity,
+                        sensitivity=sensitivity_factor, 
+                        reverse_horiz=reverse_horizontally,
+                        reverse_vert=~reverse_vertically
+                    )
+                pygame.mouse.set_pos(window_size_x // 2, window_size_y // 2)
+
         
         def get_world_position(self):
             """

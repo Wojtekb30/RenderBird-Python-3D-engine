@@ -1,8 +1,8 @@
-import RenderBirdCore
+from RenderBirdCore import *
 
 import pygame
 
-r = RenderBirdCore.RenderBirdCore(1280, 720, "Example 3")
+r = RenderBirdCore(1280, 720)
 
 fpslimit = r.FPS_Limiter(50)
 
@@ -48,7 +48,7 @@ while r.running == True:
     if r.key_pressed(pygame.K_RIGHT):
         r.camera.rotate(0,0.8,0)
         
-    #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertially=False,mouse_cursor_visible=True) 
+    r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertically=False,mouse_cursor_visible=True) 
     
     r.update_display()
     r.handle_close_event_direct()
