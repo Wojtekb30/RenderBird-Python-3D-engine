@@ -1,6 +1,6 @@
 # RenderBirdCore
 
-![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)
+![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)
 
 **RenderBirdCore** is an easy-to-use 3D rendering engine for Python based on PyGame and OpenGL. It provides a simple and intuitive interface for creating and rendering 3D objects, managing cameras, and integrating 2D UI elements, making it ideal for developers looking to easily build simple 3D applications or games with Python.
 
@@ -16,15 +16,18 @@ pip install RenderBirdCore
 
 For detailed examples and usage guides, please refer to the [Examples](https://github.com/Wojtekb30/RenderBird-Python-3D-engine/tree/main/Examples) folder on the GitHub repository.
 
+Documentation will also soon be available under [renderbird.birdtech.pl](https://renderbird.birdtech.pl).
+
+Change/update log is available on GitHub in [UpdateLog.md](https://github.com/Wojtekb30/RenderBird-Python-3D-engine/blob/main/UpdateLog.md) file.
+
 ## Known Issues
 
-- **Performance with Complex STL Models**: Custom STL 3D models may exhibit poor performance if they are highly complex or have large textures. It is recommended to use low-poly models until update to handle complex ones releases.
+- **Performance with Complex STL Models**: Custom STL 3D models may exhibit poor performance if they are highly complex or have large textures. It is recommended to use low-poly models.
 
 ## Future Plans
 
-Future updates for RenderBird include:
+Future updates for RenderBird will include:
 
-- **Enhanced 3D Model Handling**: Improved support and optimization for custom 3D models to handle complexity and textures more efficiently.
 - **Performance Enhancements**: Ongoing optimizations to increase rendering speed and reduce computational overhead.
 - **Lighting Support**: Introduction of various lighting options to create more realistic and visually appealing scenes.
 - **Additional Features**: Implementation of new functions and tools to expand the engine's capabilities and provide developers with more flexibility.

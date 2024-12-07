@@ -1,5 +1,0 @@
-Version 0.1.0 - First ever version.
-
-Version 0.1.1 - Removed rotation_speed argument from RectangularPrism because it was unused, changed method name in SoundManager from add_sound to add_sound_to_memory, made Model3D_STL render with image textures without performance loss. I promise to not change already existing method names again btw.
-
-Version 0.1.2 - Fixed Model3D_STL to be able to render in plain color if no texture image file is provided.

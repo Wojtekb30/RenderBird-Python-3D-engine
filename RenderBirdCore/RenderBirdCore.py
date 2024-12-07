@@ -1,5 +1,5 @@
-#RenderBirdCore 0.1.2
-#Created by Wojtekb30 (Wojciech B), this version was created on 28.11.2024.
+#RenderBirdCore 0.1.3
+#Created by Wojtekb30 (Wojciech B)
 import pygame
 from pygame.locals import *
 import sys
@@ -17,7 +17,7 @@ from io import StringIO
 class RenderBirdCore:
     def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45, camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0):
         pygame.init()
-        RENDERBIRD_VERSION = "0.1.2"
+        RENDERBIRD_VERSION = "0.1.3"
         self.window_size_x = window_size_x
         self.window_size_y = window_size_y
         self.screen = pygame.display.set_mode((self.window_size_x, self.window_size_y), DOUBLEBUF | OPENGL)
@@ -251,31 +251,27 @@ class RenderBirdCore:
         def look_around(self, delta_x, delta_y, sensitivity=0.1, reverse_horiz=False, reverse_vert=False):
             """
             Adjusts the camera's yaw and pitch based on mouse movement.
-    
-            :param delta_x: Mouse movement in the X-direction.
-            :param delta_y: Mouse movement in the Y-direction.
-            :param sensitivity: Sensitivity factor for mouse movement.
-            :param reverse_horiz: If True, reverses the horizontal look direction.
-            :param reverse_vert: If True, reverses the vertical look direction.
             """
-            delta_x *= sensitivity
-            delta_y *= sensitivity
-            delta_y = -delta_y
-            
-            if reverse_horiz:
-                delta_x = -delta_x
-            if reverse_vert:
-                delta_y = -delta_y
-    
+            delta_x = delta_x * sensitivity * (-1 if reverse_horiz else 1)
+            delta_y = delta_y * sensitivity * (-1 if reverse_vert else 1)
             self.rotation[1] += delta_x  # Yaw
-            self.rotation[0] += delta_y  # Pitch
-    
-            self.rotation[0] = max(-90, min(90, self.rotation[0]))
-    
-            self.update_forward_vector()
+            self.rotation[0] = max(-90, min(90, self.rotation[0] + delta_y))  # Pitch
+            pitch_rad = math.radians(self.rotation[0])
+            yaw_rad = math.radians(self.rotation[1])
+            cos_pitch = math.cos(pitch_rad)
+            sin_pitch = math.sin(pitch_rad)
+            cos_yaw = math.cos(yaw_rad)
+            sin_yaw = math.sin(yaw_rad)
+            self.forward_vector = [
+                cos_pitch * sin_yaw,
+                sin_pitch,
+                -cos_pitch * cos_yaw
+            ]
+
             self.setup_perspective()
+
     
-        def use_mouse_camera_controls(self, window_size_x: int, window_size_y: int, sensitivity=0.1, sensitivity_factor=1, reverse_horizontally=False, reverse_vertially=False, mouse_cursor_visible=False):
+        def use_mouse_camera_controls(self, window_size_x: int, window_size_y: int, sensitivity=0.1, sensitivity_factor=1.0,reverse_horizontally=False, reverse_vertically=False, mouse_cursor_visible=False):
             """
             Implements mouse-based camera controls by capturing mouse movement and adjusting the camera's orientation.
     
@@ -284,15 +280,23 @@ class RenderBirdCore:
             :param sensitivity: Sensitivity factor for mouse movement.
             :param sensitivity_factor: Additional sensitivity scaling factor.
             :param reverse_horizontally: If True, reverses horizontal mouse movement.
-            :param reverse_vertially: If True, reverses vertical mouse movement.
+            :param reverse_vertically: If True, reverses vertical mouse movement.
             :param mouse_cursor_visible: If True, makes the mouse cursor visible.
             """
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            delta_x = (mouse_x - window_size_x / 2) / sensitivity_factor
-            delta_y = (mouse_y - window_size_y / 2) / sensitivity_factor
-            pygame.mouse.set_pos(window_size_x // 2, window_size_y // 2)
-            pygame.mouse.set_visible(mouse_cursor_visible)
-            self.look_around(delta_x, delta_y, sensitivity, reverse_horizontally, reverse_vertially)
+            #pygame.event.set_grab(True) 
+            pygame.mouse.set_visible(mouse_cursor_visible) 
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEMOTION:
+                    delta_x, delta_y = event.rel 
+                    self.look_around(
+                        delta_x * sensitivity,
+                        delta_y * sensitivity,
+                        sensitivity=sensitivity_factor, 
+                        reverse_horiz=reverse_horizontally,
+                        reverse_vert=~reverse_vertically
+                    )
+                pygame.mouse.set_pos(window_size_x // 2, window_size_y // 2)
+
         
         def get_world_position(self):
             """
@@ -420,6 +424,17 @@ class RenderBirdCore:
             """
             self.start_time = time.time()
             return self.start_time
+        
+        def run_in_loop(self, function, *args):
+            """
+            Run a function in interval specified when creating object of the RunAfterTime class.
+            :param function: Function
+            :param *args: The function's arguments
+            """
+            if time.time() >= self.start_time + self.seconds:
+                self.reset_start_time()
+                return function(*args)
+            return None
 
 
     def run_once(self, function, *args, remove_not_run=False):
@@ -529,6 +544,41 @@ class RenderBirdCore:
         glEnd()
         glPopMatrix()
 
+    def normalize_color(self, tuple_4_values):
+        """
+        Divides every color value in the tuple by 255, ensuring compatiblity with OpenGL.
+        
+        :param tuple_4_values: Tuple with 4 values for Red, Green, Blue and Transparency.
+        
+        Returns normalized tuple.
+        """
+        r = float(tuple_4_values[0]/255)
+        g = float(tuple_4_values[1]/255)
+        b = float(tuple_4_values[2]/255)
+        t = float(tuple_4_values[3]/255)
+        return (r,g,b,t)
+    
+    def denormalize_color(self, tuple_4_values):
+        """
+        Multiplies every color value in the tuple by 255, ensuring compatiblity with 2D elements and STL 3D model coloring.
+        
+        :param tuple_4_values: Tuple with 4 values for Red, Green, Blue and Transparency.
+        
+        Returns de-normalized tuple.
+        """
+        r = int(tuple_4_values[0]*255)
+        g = int(tuple_4_values[1]*255)
+        b = int(tuple_4_values[2]*255)
+        t = int(tuple_4_values[3]*255)
+        return (r,g,b,t)
+        
+    def calculate_side_from_middle(self, point, side_length):
+        a = side_length/2
+        return point - a
+    
+    def calculate_middle_from_side(self, point, side_length):
+        a = side_length/2
+        return point + a
 
     class FPS_Limiter:
         """
@@ -815,229 +865,23 @@ class RenderBirdCore:
             glEnd()
             glDisable(GL_BLEND)
             glPopMatrix()
-            
+        
         def check_collision(self, other):
             """
-            Checks if this object collides with another object using AABB.
-            :param other: Another object with a position and size/dimensions.
+            Checks if this rectangular prism collides with another rectangular prism using AABB.
+            :param other: Another object with position, width, height, and depth attributes.
             :return: True if there is a collision, False otherwise.
             """
-            if (abs(self.position[0] - other.position[0]) < (self.size / 2 + other.size / 2) and
-                abs(self.position[1] - other.position[1]) < (self.size / 2 + other.size / 2) and
-                abs(self.position[2] - other.position[2]) < (self.size / 2 + other.size / 2)):
+            if (abs(self.position[0] - other.position[0]) < (self.width / 2 + other.width / 2) and
+                abs(self.position[1] - other.position[1]) < (self.height / 2 + other.height / 2) and
+                abs(self.position[2] - other.position[2]) < (self.depth / 2 + other.depth / 2)):
                 return True
             return False
 
 
-    '''class Model3D_VeryLowPolyOneTexture:
-        def __init__(self, obj_path, texture_path=None, mtl_path=None, position=(0, 0, 0), scale=100, rotation=(0, 0, 0), rotation_speed=(0, 0, 0)):
-            """
-            A class to load and render 3D models from .obj files with .mtl support and optional texture.
-            :param obj_path: Path to the .obj file.
-            :param texture_path: Path to a default texture image (overridden by .mtl if specified).
-            :param position: Initial 3D position of the model (x, y, z).
-            :param scale: Scaling factor in percentage (default is 100%).
-            :param rotation: Initial rotation angles (pitch, yaw, roll).
-            :param rotation_speed: Rotation speed for each axis.
-            """
-            self.obj_path = obj_path
-            if mtl_path != None:
-                self.mtl_path = mtl_path
-            else:
-                self.mtl_path = obj_path.replace(".obj", ".mtl")  # Default .mtl path
-            self.texture_path = texture_path
-            self.position = list(position)
-            self.rotation = list(rotation)
-            self.rotation_speed = list(rotation_speed)
-            self.scale = scale / 100.0  # Convert percentage to a scaling factor
-
-            # Data storage
-            self.vertices = []
-            self.normals = []
-            self.tex_coords = []
-            self.faces_with_materials = []
-            self.materials = {}
-            self.texture_id = None
-
-            # Load model, materials, and texture
-            self.load_model()
-            if os.path.exists(self.mtl_path):
-                self.load_mtl()
-            if self.texture_path and os.path.exists(self.texture_path):
-                self.load_texture()
-
-        def load_model(self):
-            """
-            Parses the .obj file and stores vertex, normal, texture coordinate, and face data.
-            Associates faces with materials (if specified).
-            """
-            with open(self.obj_path, "r") as file:
-                current_material = None
-                for line in file:
-                    parts = line.strip().split()
-                    if not parts or parts[0].startswith("#"):
-                        continue
-                    if parts[0] == "v":  # Vertex
-                        self.vertices.append([float(x) for x in parts[1:4]])
-                    elif parts[0] == "vn":  # Normal
-                        self.normals.append([float(x) for x in parts[1:4]])
-                    elif parts[0] == "vt":  # Texture coordinate
-                        self.tex_coords.append([float(x) for x in parts[1:3]])
-                    elif parts[0] == "usemtl":  # Material usage
-                        current_material = parts[1]
-                    elif parts[0] == "f":  # Face
-                        face = []
-                        for vertex in parts[1:]:
-                            vertex_data = vertex.split("/")
-                            vertex_index = int(vertex_data[0]) - 1
-                            texture_index = int(vertex_data[1]) - 1 if len(vertex_data) > 1 and vertex_data[1] else None
-                            normal_index = int(vertex_data[2]) - 1 if len(vertex_data) > 2 and vertex_data[2] else None
-                            face.append((vertex_index, texture_index, normal_index))
-                        self.faces_with_materials.append((face, current_material))
-
-
-        def load_texture(self, texture_path=None):
-            """
-            Loads a texture image from the specified path.
-            If no path is provided, defaults to the texture_path set in the constructor.
-            """
-            if not texture_path:
-                texture_path = self.texture_path
-            if not texture_path or not os.path.exists(texture_path):
-                return
-
-            img = Image.open(texture_path)
-            img_data = np.array(img.convert("RGBA"), dtype=np.uint8)
-
-            self.texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.texture_id)
-
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
-            glBindTexture(GL_TEXTURE_2D, 0)
-
-        def load_mtl(self):
-            """
-            Parses the .mtl file and extracts material definitions.
-            """
-            with open(self.mtl_path, "r") as file:
-                current_material = None
-                for line in file:
-                    parts = line.strip().split()
-                    if not parts or parts[0].startswith("#"):
-                        continue
-                    if parts[0] == "newmtl":  # Start a new material
-                        current_material = parts[1]
-                        self.materials[current_material] = {
-                            "Ka": [0.0, 0.0, 0.0],  # Ambient color
-                            "Kd": [0.5, 0.5, 0.5],  # Diffuse color
-                            "Ks": [0.5, 0.5, 0.5],  # Specular color
-                            "map_Kd": None,  # Diffuse texture map
-                        }
-                    elif current_material:
-                        if parts[0] == "Ka":  # Ambient color
-                            self.materials[current_material]["Ka"] = [float(x) for x in parts[1:4]]
-                        elif parts[0] == "Kd":  # Diffuse color
-                            self.materials[current_material]["Kd"] = [float(x) for x in parts[1:4]]
-                        elif parts[0] == "Ks":  # Specular color
-                            self.materials[current_material]["Ks"] = [float(x) for x in parts[1:4]]
-                        elif parts[0] == "map_Kd":  # Diffuse texture map
-                            self.materials[current_material]["map_Kd"] = parts[1]
-                            # Load texture if specified in .mtl
-                            texture_path = os.path.join(os.path.dirname(self.mtl_path), parts[1])  # Full path
-                            self.load_texture(texture_path)
-                            #print(f"Loaded texture: {texture_path}")
-
-
-
-        def draw(self):
-            """
-            Renders the 3D model with materials and textures applied.
-            """
-            glPushMatrix()
-            glTranslatef(*self.position)
-            glRotatef(self.rotation[0], 1, 0, 0)  # Pitch
-            glRotatef(self.rotation[1], 0, 1, 0)  # Yaw
-            glRotatef(self.rotation[2], 0, 0, 1)  # Roll
-            glScalef(self.scale, self.scale, self.scale)
-
-            for face, material in self.faces_with_materials:
-                if material:
-                    mat = self.materials.get(material, {})
-
-                    # Apply material properties if defined
-                    if "Ka" in mat:  # Ambient color
-                        glMaterialfv(GL_FRONT, GL_AMBIENT, mat["Ka"])
-                    if "Kd" in mat:  # Diffuse color
-                        glMaterialfv(GL_FRONT, GL_DIFFUSE, mat["Kd"])
-                    if "Ks" in mat:  # Specular color
-                        glMaterialfv(GL_FRONT, GL_SPECULAR, mat["Ks"])
-
-                    # Handle texture loading and application
-                    if "map_Kd" in mat and mat["map_Kd"]:
-                        texture_path = os.path.join(os.path.dirname(self.mtl_path), mat["map_Kd"])
-                        if self.texture_id is None:  # Load texture only if it's not already loaded
-                            self.load_texture(texture_path)
-                            #print(f"Loaded texture: {texture_path}")
-
-                        if self.texture_id:
-                            glEnable(GL_TEXTURE_2D)  # Enable texture if texture exists
-                            glBindTexture(GL_TEXTURE_2D, self.texture_id)  # Bind the loaded texture
-                        else:
-                            glDisable(GL_TEXTURE_2D)  # Disable texture if no texture found
-                    else:
-                        glDisable(GL_TEXTURE_2D)  # Disable texture if no texture map is provided
-
-                else:
-                    # Disable textures if no material is found
-                    glDisable(GL_TEXTURE_2D)
-
-                # Draw the faces
-                glBegin(GL_TRIANGLES)
-                for vertex_index, texture_index, normal_index in face:
-                    if texture_index is not None and self.tex_coords:
-                        glTexCoord2fv(self.tex_coords[texture_index])  # Apply texture coordinates if available
-                    if normal_index is not None and self.normals:
-                        glNormal3fv(self.normals[normal_index])  # Apply normals if available
-                    if vertex_index is not None:
-                        glVertex3fv(self.vertices[vertex_index])  # Apply vertex position
-                glEnd()
-
-                # Unbind texture after rendering each face
-                if self.texture_id:
-                    glBindTexture(GL_TEXTURE_2D, 0)  # Unbind texture
-                    glDisable(GL_TEXTURE_2D)  # Disable texture
-
-            glPopMatrix()
-
-
-
-        def translate(self, x_velocity=0, y_velocity=0, z_velocity=0):
-            """Translates the model by the specified velocity."""
-            self.position[0] += x_velocity
-            self.position[1] += y_velocity
-            self.position[2] += z_velocity
-
-        def rotate(self, delta_pitch=0, delta_yaw=0, delta_roll=0):
-            """Rotates the model by the specified angles."""
-            self.rotation[0] += delta_pitch
-            self.rotation[1] += delta_yaw
-            self.rotation[2] += delta_roll
-
-        def update_rotation(self):
-            """Automatically rotates the model using its rotation speed."""
-            self.rotation[0] += self.rotation_speed[0]
-            self.rotation[1] += self.rotation_speed[1]
-            self.rotation[2] += self.rotation_speed[2]
-    '''
-
     class Model3D_STL:
         def __init__(self, stl_path, texture_path=None, color=(1, 1, 1, 1),
-                     position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0)):
+                     position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0), use_pil_texture = False, pil_image_variable = None):
             """
             Loads and renders a 3D model from an STL file with optional texture or plain color.
             :param stl_path: Path to the .STL 3D model file
@@ -1046,6 +890,8 @@ class RenderBirdCore:
             :param position: X Y Z position in the world, tuple.
             :param scale: Scale of the rendered 3D model in %
             :param rotation: Tuple determining how to rotate the 3D model in degrees.
+            :param use_pil_texture: Default false, determines if the program should use texture from file or PIL image variable.
+            :param pil_image_variable: Provide a PIL Image variable here (not file path).
             """
             self.stl_path = stl_path
             self.texture_path = texture_path
@@ -1058,7 +904,9 @@ class RenderBirdCore:
             self.faces = []
             self.texture_coords = []  
             self.texture_id = None
-
+            self.use_pil_texture = use_pil_texture
+            self.pil_image_variable = pil_image_variable
+            
             self.load_model()
             self.generate_texture_coordinates()
             self.create_buffers()
@@ -1157,7 +1005,10 @@ class RenderBirdCore:
                 if self.texture_path and os.path.exists(self.texture_path):
                     img = Image.open(self.texture_path).convert("RGBA")
                 else:
-                    img = Image.new('RGBA', (1, 1), color=self.color)
+                    if self.use_pil_texture == True and self.pil_image_variable != None:
+                        img = self.pil_image_variable
+                    else:
+                        img = Image.new('RGBA', (1, 1), color=self.color)
                 #img.show()
                 img_data = img.tobytes("raw", "RGBA", 0, -1)
                 self.texture_id = glGenTextures(1)
@@ -1188,6 +1039,7 @@ class RenderBirdCore:
             glRotatef(self.rotation[2], 0, 0, 1)
 
             if self.texture_id:
+                glColor4f(1, 1, 1, 1)
                 glEnable(GL_TEXTURE_2D)
                 glBindTexture(GL_TEXTURE_2D, self.texture_id)
 
@@ -1278,6 +1130,10 @@ class RenderBirdCore:
                 glVertex2f(self.x, self.y + self.height)
                 glEnd()
                 
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            return self.x <= mouse_x <= self.x + self.width and self.y <= mouse_y <= self.y + self.height
+                
 
     
     class Circle_2D:
@@ -1324,6 +1180,11 @@ class RenderBirdCore:
                     angle = 2 * math.pi * i / self.segments
                     glVertex2f(self.x + math.cos(angle) * self.radius, self.y + math.sin(angle) * self.radius)
                 glEnd()
+                
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            distance_squared = (mouse_x - self.x) ** 2 + (mouse_y - self.y) ** 2
+            return distance_squared <= self.radius ** 2
     
     
     class Image_2D:
@@ -1349,6 +1210,7 @@ class RenderBirdCore:
                 #print(f"Failed to load image {image_path}: {e}")
                 raise SystemExit(e)
             image = pygame.transform.rotate(image, 180 + rotation)
+            image = pygame.transform.flip(image, True, False)
         
             if width and height:
                 image = pygame.transform.scale(image, (width, height))
@@ -1414,10 +1276,107 @@ class RenderBirdCore:
 
             glBindTexture(GL_TEXTURE_2D, 0)
             glDisable(GL_TEXTURE_2D)
-
-
-    #2D rendering methods
             
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            return self.x <= mouse_x <= self.x + self.width and self.y <= mouse_y <= self.y + self.height
+
+    class Image_2D_PIL:
+        """Represents an image object for 2D rendering using OpenGL, but uses PIL image variable instead of file path."""
+        def __init__(self, pil_image_variable, x, y, width=None, height=None, rotation=0):
+            """
+            Initialize the Image with the image path, position, and optional dimensions.
+
+            :param pil_image_variable: PIL Image (not path to an image, but image saved into a PIL image variable).
+            :param x: X-coordinate of the top-left corner.
+            :param y: Y-coordinate of the top-left corner.
+            :param width: Width to scale the image to, optional.
+            :param height: Height to scale the image to, optional.
+            :param rotation: Rotate image within its rendering zone.
+            """
+            self.pil_image = pil_image_variable
+            self.x = x
+            self.y = y
+            self.rotation = rotation
+
+            image = self.pil_image.convert("RGBA")
+            image = image.rotate(180)
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+            if width and height:
+                image = image.resize((width, height))
+                self.width = width
+                self.height = height
+            else:
+                self.width, self.height = image.size
+
+            self.image_data = image.tobytes("raw", "RGBA", 0, -1)
+
+            self.texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.texture_id)
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+            # Upload the texture data to OpenGL
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGBA,
+                self.width,
+                self.height,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                self.image_data
+            )
+
+            glBindTexture(GL_TEXTURE_2D, 0)  # Unbind the texture
+
+        def move(self, x, y):
+            self.x += x
+            self.y += y
+
+        def setlocation(self, x, y):
+            self.x = x
+            self.y = y
+
+        def draw(self, app):
+            """Draw the image as a textured quad using OpenGL."""
+            glEnable(GL_TEXTURE_2D)
+            glBindTexture(GL_TEXTURE_2D, self.texture_id)
+            glColor4f(1, 1, 1, 1) 
+
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 0)
+            glVertex2f(self.x, self.y)
+
+            glTexCoord2f(1, 0)
+            glVertex2f(self.x + self.width, self.y)
+
+            glTexCoord2f(1, 1)
+            glVertex2f(self.x + self.width, self.y + self.height)
+
+            glTexCoord2f(0, 1)
+            glVertex2f(self.x, self.y + self.height)
+            glEnd()
+
+            glBindTexture(GL_TEXTURE_2D, 0)
+            glDisable(GL_TEXTURE_2D)
+
+        def is_mouse_above(self, mouse_x, mouse_y):
+            """Check if the mouse (or other cursor) is above the object."""
+            return self.x <= mouse_x <= self.x + self.width and self.y <= mouse_y <= self.y + self.height
+
+
+
+    #2D related methods
+        
+    def get_mouse_position(self):
+        """Get current position of the mouse, return 2 variables - x and y."""
+        x, y = pygame.mouse.get_pos()
+        return x, y
             
     def set_perspective(self):
         """Set up the perspective projection for 3D rendering."""

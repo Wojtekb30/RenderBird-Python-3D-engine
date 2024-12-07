@@ -248,9 +248,6 @@ class RenderBirdCore:
             
             self.translate(dx, dy, dz)
         
-        
-        
-        
         def look_around(self, delta_x, delta_y, sensitivity=0.1, reverse_horiz=False, reverse_vert=False):
             """
             Adjusts the camera's yaw and pitch based on mouse movement.
@@ -427,6 +424,17 @@ class RenderBirdCore:
             """
             self.start_time = time.time()
             return self.start_time
+        
+        def run_in_loop(self, function, *args):
+            """
+            Run a function in interval specified when creating object of the RunAfterTime class.
+            :param function: Function
+            :param *args: The function's arguments
+            """
+            if time.time() >= self.start_time + self.seconds:
+                self.reset_start_time()
+                return function(*args)
+            return None
 
 
     def run_once(self, function, *args, remove_not_run=False):
