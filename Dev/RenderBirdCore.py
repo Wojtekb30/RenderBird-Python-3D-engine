@@ -1527,3 +1527,23 @@ class RenderBirdCore:
                             break
                     if not found_channel:
                         self.is_playing[name] = False
+
+    #3D rendering methods:
+    def render_3d_objects(self, object_list):
+        """
+        Renders 3D objects by running draw() method for every object provided in object_list list.
+        """
+        for i in object_list:
+            if hasattr(i, 'draw'):
+                i.draw()
+                #print(str(time.time())+str(i))
+                
+    def render_visible_3d_objects(self,object_list,distance=20,angle=60):
+        """
+        Renders only 3D objects that are currently in the field of view, increasing rendering performance.
+        :param object_list: List of objects to take into account then rendering, for example [cube1, cube2].
+        :param distance: Rendering distance, default 20.
+        :param angle: Angle in degrees between object and camera's forward vector. By default 60, which works good in default field of view of the camera, but increase it in case of problems. 
+        """
+        visible_objects = self.camera.detect_objects_in_view(object_list,distance,angle)
+        self.render_3d_objects(visible_objects)
