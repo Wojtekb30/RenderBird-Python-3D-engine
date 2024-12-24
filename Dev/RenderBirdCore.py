@@ -1,4 +1,4 @@
-#RenderBirdCore 0.1.3
+#RenderBirdCore 0.1.4
 #Created by Wojtekb30 (Wojciech B)
 import pygame
 from pygame.locals import *
@@ -15,9 +15,12 @@ from OpenGL.arrays import vbo
 from io import StringIO
 
 class RenderBirdCore:
-    def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45, camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0):
+    def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,
+                 camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45,
+                 camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0,
+                 camera_hitbox_width=0.1, camera_hitbox_height=0.1,camera_hitbox_depth=0.1):
         pygame.init()
-        RENDERBIRD_VERSION = "0.1.3"
+        RENDERBIRD_VERSION = "0.1.4"
         self.window_size_x = window_size_x
         self.window_size_y = window_size_y
         self.screen = pygame.display.set_mode((self.window_size_x, self.window_size_y), DOUBLEBUF | OPENGL)
@@ -31,7 +34,7 @@ class RenderBirdCore:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
         # Initialize the camera
-        self.camera = self.Camera(self.window_size_x, self.window_size_y, camera_x, camera_y, camera_z, camera_pitch, camera_yaw, camera_roll, camera_fov, camera_minimum_render_distance, camera_maximum_render_distance)
+        self.camera = self.Camera(self.window_size_x, self.window_size_y, camera_x, camera_y, camera_z, camera_pitch, camera_yaw, camera_roll, camera_fov, camera_minimum_render_distance, camera_maximum_render_distance, camera_hitbox_width, camera_hitbox_height,camera_hitbox_depth)
         self.run_once_list = []
         self.running = True
         self.background_color = (0.0, 0.0, 0.0, 1.0)  # RGBA
@@ -92,7 +95,7 @@ class RenderBirdCore:
 
 
     class Camera:
-        def __init__(self, view_width, view_height, x=0, y=0, z=0, pitch=0, yaw=0, roll=0, fov=45, minimum_render_distance=0.1, maximum_render_distance=50):
+        def __init__(self, view_width, view_height, x=0, y=0, z=0, pitch=0, yaw=0, roll=0, fov=45, minimum_render_distance=0.1, maximum_render_distance=50, hitbox_width=0.1, hitbox_height=0.1,hitbox_depth=0.1):
             """
             Initializes the Camera with position, rotation, and perspective settings.
             
@@ -107,6 +110,9 @@ class RenderBirdCore:
             :param fov: Field of view angle.
             :param minimum_render_distance: Minimum render distance.
             :param maximum_render_distance: Maximum render distance.
+            :param hitbox_width: Width of camera's hitbox used in collission detection.
+            :param hitbox_height: Height of camera's hitbox used in collission detection.
+            :param hitbox_depth: Depth of camera's hitbox used in collission detection.
             """
             
             self.view_width = view_width
@@ -119,6 +125,10 @@ class RenderBirdCore:
             self.forward_vector = [0, 0, -1]  # Initial forward direction
             self.setup_perspective()
             self.update_forward_vector()
+            
+            self.width = hitbox_width
+            self.height = hitbox_height
+            self.depth = hitbox_depth
         
         def update_forward_vector(self):
             """
@@ -365,6 +375,18 @@ class RenderBirdCore:
             )
             glEnd()
             glPopMatrix()
+            
+        def check_collision(self, other):
+            """
+            Checks if this rectangular prism collides with another rectangular prism using AABB.
+            :param other: Another object with position, width, height, and depth attributes.
+            :return: True if there is a collision, False otherwise.
+            """
+            if (abs(self.position[0] - other.position[0]) < (self.width / 2 + other.width / 2) and
+                abs(self.position[1] - other.position[1]) < (self.height / 2 + other.height / 2) and
+                abs(self.position[2] - other.position[2]) < (self.depth / 2 + other.depth / 2)):
+                return True
+            return False
         
 
     #Utility and functions:
@@ -579,6 +601,54 @@ class RenderBirdCore:
     def calculate_middle_from_side(self, point, side_length):
         a = side_length/2
         return point + a
+
+    class PreventMovingInsideObjects:
+        def __init__(self, object_to_affect, other_objects_list):
+            #self.reset_object_and_location_lists(object_to_affect, other_objects_list)
+            self.object_to_affect = object_to_affect
+            self.object_to_affect_old_pos = self.object_to_affect.position.copy()
+            self.internal_object_list = other_objects_list
+                
+        '''def reset_object_and_location_lists(self,object_to_affect, object_list):
+            self.old_location_list = []
+            
+            #print('reset_obj')
+            for i in self.internal_object_list:
+                self.old_location_list.append(i.position)
+                
+        def update_locations(self):
+            self.old_location_list = []
+            self.object_to_affect_old_pos = self.object_to_affect.position
+            for i in self.internal_object_list:
+                self.old_location_list.append(i.position)'''
+                
+        def check_and_correct(self):
+            n = 0
+            while n<len(self.internal_object_list):
+                if self.object_to_affect.check_collision(self.internal_object_list[n]):
+                    a = self.object_to_affect_old_pos[0] - self.object_to_affect.position[0]
+                    b = self.object_to_affect_old_pos[1] - self.object_to_affect.position[1]
+                    c = self.object_to_affect_old_pos[2] - self.object_to_affect.position[2]
+                    print([a,b,c])
+                    if hasattr(self.object_to_affect, 'move'):
+                        try:
+                            self.object_to_affect.move([a,b,c])
+                        except:
+                            self.object_to_affect.move(a,b,c)
+                    elif hasattr(self.object_to_affect, 'translate'):
+                        try:
+                            self.object_to_affect.translate([a,b,c])
+                        except:
+                            self.object_to_affect.translate(a,b,c)
+                a=self.object_to_affect_old_pos.copy()
+                if self.object_to_affect.position!=self.object_to_affect_old_pos and self.object_to_affect.check_collision(self.internal_object_list[n]):
+                    self.object_to_affect_old_pos = self.object_to_affect.position.copy()
+                b=self.object_to_affect_old_pos.copy()
+                if a!=b:
+                    print('rozne')
+                n+=1
+                print(self.object_to_affect.position)
+            
 
     class FPS_Limiter:
         """
