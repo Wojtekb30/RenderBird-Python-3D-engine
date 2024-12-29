@@ -34,7 +34,7 @@ class RenderBirdCore:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
         # Initialize the camera
-        self.camera = self.Camera(self.window_size_x, self.window_size_y, camera_x, camera_y, camera_z, camera_pitch, camera_yaw, camera_roll, camera_fov, camera_minimum_render_distance, camera_maximum_render_distance, camera_hitbox_width, camera_hitbox_height,camera_hitbox_depth)
+        self.camera = self.Camera_class(self.window_size_x, self.window_size_y, camera_x, camera_y, camera_z, camera_pitch, camera_yaw, camera_roll, camera_fov, camera_minimum_render_distance, camera_maximum_render_distance, camera_hitbox_width, camera_hitbox_height,camera_hitbox_depth)
         self.run_once_list = []
         self.running = True
         self.background_color = (0.0, 0.0, 0.0, 1.0)  # RGBA
@@ -94,10 +94,10 @@ class RenderBirdCore:
         return self.screen
 
 
-    class Camera:
-        def __init__(self, view_width, view_height, x=0, y=0, z=0, pitch=0, yaw=0, roll=0, fov=45, minimum_render_distance=0.1, maximum_render_distance=50, hitbox_width=0.1, hitbox_height=0.1,hitbox_depth=0.1):
+    class Camera_class:
+        def __init__(self, view_width, view_height, x=0, y=0, z=0, pitch=0, yaw=0, roll=0, fov=45, minimum_render_distance=0.1, maximum_render_distance=50, hitbox_width=0.5, hitbox_height=0.5,hitbox_depth=0.5):
             """
-            Initializes the Camera with position, rotation, and perspective settings.
+            Initializes the camera (viewport) with position, rotation, and perspective settings.
             
             :param view_width: Width of the viewport.
             :param view_height: Height of the viewport.
@@ -681,7 +681,14 @@ class RenderBirdCore:
                 if current_time - self.first_time_reading >= wait:
                     break
 
-
+    def MoveObjectAlongVector(self, obj, vector, factor=1.0):
+        '''
+        Move an object along a vector (for example a bullet along camera's forward vector).
+        :param obj: The object to move (translate)
+        :param vector: 3D vector, a tuple of 3 values, for example (0.1, 0.2, 0.3)
+        :param factor: A value to multiply each element of the vector by, use it to change movement speed.
+        '''
+        obj.translate(float(vector[0]*factor),float(vector[1]*factor),float(vector[2]*factor))
 
     #3D Objects:
                 
@@ -1151,8 +1158,6 @@ class RenderBirdCore:
         def update_rotation(self):
             """Applies continuous rotation based on current rotation angles."""
             self.rotate()
-
-
 
     #2D Objects:
     

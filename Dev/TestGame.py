@@ -1,5 +1,5 @@
 from RenderBirdCore import *
-
+from PIL import Image
 import pygame
 
 r = RenderBirdCore(1280, 720)
@@ -64,7 +64,8 @@ while r.running == True:
         r.camera.rotate(0,0.8,0)
         
     #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertically=False,mouse_cursor_visible=True) 
-    
+    #v = r.camera.forward_vector
+    #r.MoveObjectAlongVector(cube,v,0.01)
     #print(r.camera.check_collision(cube))
     if anticollission.check_and_correct():
         print(time.time())
