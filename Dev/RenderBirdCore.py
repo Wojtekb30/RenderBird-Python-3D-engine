@@ -13,6 +13,7 @@ import os
 import struct
 from OpenGL.arrays import vbo
 from io import StringIO
+import asyncio
 
 class RenderBirdCore:
     def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,
@@ -601,6 +602,30 @@ class RenderBirdCore:
     def calculate_middle_from_side(self, point, side_length):
         a = side_length/2
         return point + a
+
+
+    def RotateObjectToVector(self, obj, vector, factor=1.0, desired_roll=0):
+        """
+        Rotates a 3D object to face the direction specified by a vector.
+        
+        :param obj: The 3D object to rotate.
+        :param vector: A tuple or list representing the direction vector (x, y, z).
+        :param factor: A float representing the interpolation factor for smooth rotation. Use 1 for an immediate rotation or a value smaller than 1 for gradual rotation.
+        :param desired_roll: Set desired roll value.
+        """
+        x, y, z = vector
+        # Prevent division by zero
+        if x == 0 and z == 0 and y == 0:
+            print("Error: Zero-length vector provided for rotation.")
+            return None
+        target_yaw = math.degrees(math.atan2(x, -z))
+        horizontal_distance = math.sqrt(x**2 + z**2)
+        target_pitch = math.degrees(math.atan2(y, horizontal_distance))
+
+        obj.rotation[0] += (target_pitch - obj.rotation[0]) * factor
+        obj.rotation[1] += (target_yaw - obj.rotation[1]) * factor
+        obj.rotation[2] = desired_roll
+
 
     class PreventMovingInsideObjects:
         '''
@@ -1624,3 +1649,47 @@ class RenderBirdCore:
         """
         visible_objects = self.camera.detect_objects_in_view(object_list,distance,angle)
         self.render_3d_objects(visible_objects)
+         
+    #Asynchronous processing, functions and functionalities:
+        
+    class AsyncFunctionManager:
+        def __init__(self):
+            self.tasks = []
+    
+        async def start_async_function(self, async_function, *args):
+            """
+            Starts an asynchronous function and adds it to the list of tasks. Use the function itself and its arguments as arguments.
+            """
+            task = asyncio.create_task(async_function(*args))
+            self.tasks.append(task)
+            return task
+    
+        async def stop_async_function(self, task):
+            """
+            Cancels a specific running asynchronous function and waits for it to complete. Use the function itself as argument.
+            """
+            if task in self.tasks:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                self.tasks.remove(task)
+    
+        async def stop_all_async_functions(self):
+            """
+            Cancels all running asynchronous functions and waits for them to complete.
+            """
+            for task in self.tasks:
+                task.cancel()
+            await asyncio.gather(*self.tasks, return_exceptions=True)
+            self.tasks.clear()
+    
+        async def get_async_function_result(self, task):
+            """
+            Checks if the given asynchronous function task has finished and returns its result, or None if it hasn't finished yet. Use the function itself as argument.
+            """
+            if task.done():
+                try:
+                    return task.result()
+                except asyncio.CancelledError:
+                    return None
+            else:
+                return None
