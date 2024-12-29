@@ -18,7 +18,7 @@ class RenderBirdCore:
     def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,
                  camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45,
                  camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0,
-                 camera_hitbox_width=0.1, camera_hitbox_height=0.1,camera_hitbox_depth=0.1):
+                 camera_hitbox_width=0.5, camera_hitbox_height=0.5,camera_hitbox_depth=0.5):
         pygame.init()
         RENDERBIRD_VERSION = "0.1.4"
         self.window_size_x = window_size_x
@@ -603,52 +603,54 @@ class RenderBirdCore:
         return point + a
 
     class PreventMovingInsideObjects:
-        def __init__(self, object_to_affect, other_objects_list):
-            #self.reset_object_and_location_lists(object_to_affect, other_objects_list)
+        '''
+        With this class you can prevent an object from moving inside (clipping) an another object, including preventing camera from clipping inside objects.
+        '''
+        def __init__(self, object_to_affect, other_objects_list, step_size=0.01, max_correction_steps = 16):
+            '''
+            With this class you can prevent an object from moving inside an another object, including preventing camera from clipping inside objects. It is collission-based.
+            :param object_to_affect: The object that you do not want to move (clip) inside other objects, for example camera.
+            :param other_objects_list: List containing the other objects that you do not want the object to clip into.
+            :param step_size: Correction step size used to move the object out of the another, the lower the smoother the process will look.
+            :param max_correction_steps: Maximum steps of moving out of the another object.
+            '''
             self.object_to_affect = object_to_affect
-            self.object_to_affect_old_pos = self.object_to_affect.position.copy()
             self.internal_object_list = other_objects_list
-                
-        '''def reset_object_and_location_lists(self,object_to_affect, object_list):
-            self.old_location_list = []
-            
-            #print('reset_obj')
-            for i in self.internal_object_list:
-                self.old_location_list.append(i.position)
-                
-        def update_locations(self):
-            self.old_location_list = []
-            self.object_to_affect_old_pos = self.object_to_affect.position
-            for i in self.internal_object_list:
-                self.old_location_list.append(i.position)'''
-                
+            self.step_size = step_size
+            self.max_correction_steps = max_correction_steps
+            self.previous_valid_position = self.object_to_affect.position.copy()
+
         def check_and_correct(self):
-            n = 0
-            while n<len(self.internal_object_list):
-                if self.object_to_affect.check_collision(self.internal_object_list[n]):
-                    a = self.object_to_affect_old_pos[0] - self.object_to_affect.position[0]
-                    b = self.object_to_affect_old_pos[1] - self.object_to_affect.position[1]
-                    c = self.object_to_affect_old_pos[2] - self.object_to_affect.position[2]
-                    print([a,b,c])
-                    if hasattr(self.object_to_affect, 'move'):
-                        try:
-                            self.object_to_affect.move([a,b,c])
-                        except:
-                            self.object_to_affect.move(a,b,c)
-                    elif hasattr(self.object_to_affect, 'translate'):
-                        try:
-                            self.object_to_affect.translate([a,b,c])
-                        except:
-                            self.object_to_affect.translate(a,b,c)
-                a=self.object_to_affect_old_pos.copy()
-                if self.object_to_affect.position!=self.object_to_affect_old_pos and self.object_to_affect.check_collision(self.internal_object_list[n]):
-                    self.object_to_affect_old_pos = self.object_to_affect.position.copy()
-                b=self.object_to_affect_old_pos.copy()
-                if a!=b:
-                    print('rozne')
-                n+=1
-                print(self.object_to_affect.position)
-            
+            '''
+            Run the function which checks if the object_to_affect collided with any of the another_objects and then moves it away to prevent clipping.
+            This way you can prevent an object from moving inside an another object, including preventing camera from clipping inside objects.
+            '''
+            steps = 0 
+            while steps < self.max_correction_steps:
+                collision_detected = False
+                for other_object in self.internal_object_list:
+                    if self.object_to_affect.check_collision(other_object):
+                        collision_detected = True
+
+                        #Direction calculation
+                        dx = self.object_to_affect.position[0] - other_object.position[0]
+                        dy = self.object_to_affect.position[1] - other_object.position[1]
+                        dz = self.object_to_affect.position[2] - other_object.position[2]
+
+                        if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
+                            self.object_to_affect.position[0] += self.step_size if dx > 0 else -self.step_size
+                        elif abs(dy) >= abs(dx) and abs(dy) >= abs(dz):
+                            self.object_to_affect.position[1] += self.step_size if dy > 0 else -self.step_size
+                        else:
+                            self.object_to_affect.position[2] += self.step_size if dz > 0 else -self.step_size
+                        break
+
+                if collision_detected == False:
+                    self.previous_valid_position = self.object_to_affect.position.copy()
+                    return None
+                steps += 1
+            self.object_to_affect.position = self.previous_valid_position.copy()
+            return None
 
     class FPS_Limiter:
         """
@@ -656,7 +658,7 @@ class RenderBirdCore:
         """
         def __init__(self, max_fps: int):
             """
-            :param max_fps: Maximum frames per second, I recommend 30, 50 or 60
+            :param max_fps: Maximum frames per second, recommended 30, 50 or 60
             """
             self.max_fps = max_fps
             self.first_time_reading = 0.0

@@ -65,8 +65,9 @@ while r.running == True:
         
     #r.camera.use_mouse_camera_controls(r.window_size_x,r.window_size_y,sensitivity=0.2,sensitivity_factor=1,reverse_horizontally=False,reverse_vertically=False,mouse_cursor_visible=True) 
     
-    print(r.camera.check_collision(cube))
-    anticollission.check_and_correct()
+    #print(r.camera.check_collision(cube))
+    if anticollission.check_and_correct():
+        print(time.time())
     
     r.update_display()
     r.handle_close_event_direct()
