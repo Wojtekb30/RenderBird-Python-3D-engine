@@ -1,4 +1,4 @@
-#RenderBirdCore 0.1.3
+#RenderBirdCore 0.1.4
 #Created by Wojtekb30 (Wojciech B)
 import pygame
 from pygame.locals import *
@@ -13,11 +13,15 @@ import os
 import struct
 from OpenGL.arrays import vbo
 from io import StringIO
+import asyncio
 
 class RenderBirdCore:
-    def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45, camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0):
+    def __init__(self, window_size_x=1280, window_size_y=720, window_title="RenderBird Program", depth_testing=True,
+                 camera_x=0, camera_y=0, camera_z=0, camera_pitch=0, camera_yaw=0, camera_roll=0, camera_fov=45,
+                 camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0,
+                 camera_hitbox_width=0.5, camera_hitbox_height=0.5,camera_hitbox_depth=0.5):
         pygame.init()
-        RENDERBIRD_VERSION = "0.1.3"
+        RENDERBIRD_VERSION = "0.1.4"
         self.window_size_x = window_size_x
         self.window_size_y = window_size_y
         self.screen = pygame.display.set_mode((self.window_size_x, self.window_size_y), DOUBLEBUF | OPENGL)
@@ -31,7 +35,7 @@ class RenderBirdCore:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
         # Initialize the camera
-        self.camera = self.Camera(self.window_size_x, self.window_size_y, camera_x, camera_y, camera_z, camera_pitch, camera_yaw, camera_roll, camera_fov, camera_minimum_render_distance, camera_maximum_render_distance)
+        self.camera = self.Camera_class(self.window_size_x, self.window_size_y, camera_x, camera_y, camera_z, camera_pitch, camera_yaw, camera_roll, camera_fov, camera_minimum_render_distance, camera_maximum_render_distance, camera_hitbox_width, camera_hitbox_height,camera_hitbox_depth)
         self.run_once_list = []
         self.running = True
         self.background_color = (0.0, 0.0, 0.0, 1.0)  # RGBA
@@ -91,10 +95,10 @@ class RenderBirdCore:
         return self.screen
 
 
-    class Camera:
-        def __init__(self, view_width, view_height, x=0, y=0, z=0, pitch=0, yaw=0, roll=0, fov=45, minimum_render_distance=0.1, maximum_render_distance=50):
+    class Camera_class:
+        def __init__(self, view_width, view_height, x=0, y=0, z=0, pitch=0, yaw=0, roll=0, fov=45, minimum_render_distance=0.1, maximum_render_distance=50, hitbox_width=0.5, hitbox_height=0.5,hitbox_depth=0.5):
             """
-            Initializes the Camera with position, rotation, and perspective settings.
+            Initializes the camera (viewport) with position, rotation, and perspective settings.
             
             :param view_width: Width of the viewport.
             :param view_height: Height of the viewport.
@@ -107,6 +111,9 @@ class RenderBirdCore:
             :param fov: Field of view angle.
             :param minimum_render_distance: Minimum render distance.
             :param maximum_render_distance: Maximum render distance.
+            :param hitbox_width: Width of camera's hitbox used in collission detection.
+            :param hitbox_height: Height of camera's hitbox used in collission detection.
+            :param hitbox_depth: Depth of camera's hitbox used in collission detection.
             """
             
             self.view_width = view_width
@@ -119,6 +126,10 @@ class RenderBirdCore:
             self.forward_vector = [0, 0, -1]  # Initial forward direction
             self.setup_perspective()
             self.update_forward_vector()
+            
+            self.width = hitbox_width
+            self.height = hitbox_height
+            self.depth = hitbox_depth
         
         def update_forward_vector(self):
             """
@@ -365,6 +376,18 @@ class RenderBirdCore:
             )
             glEnd()
             glPopMatrix()
+            
+        def check_collision(self, other):
+            """
+            Checks if this rectangular prism collides with another rectangular prism using AABB.
+            :param other: Another object with position, width, height, and depth attributes.
+            :return: True if there is a collision, False otherwise.
+            """
+            if (abs(self.position[0] - other.position[0]) < (self.width / 2 + other.width / 2) and
+                abs(self.position[1] - other.position[1]) < (self.height / 2 + other.height / 2) and
+                abs(self.position[2] - other.position[2]) < (self.depth / 2 + other.depth / 2)):
+                return True
+            return False
         
 
     #Utility and functions:
@@ -580,13 +603,87 @@ class RenderBirdCore:
         a = side_length/2
         return point + a
 
+
+    def RotateObjectToVector(self, obj, vector, factor=1.0, desired_roll=0):
+        """
+        Rotates a 3D object to face the direction specified by a vector.
+        
+        :param obj: The 3D object to rotate.
+        :param vector: A tuple or list representing the direction vector (x, y, z).
+        :param factor: A float representing the interpolation factor for smooth rotation. Use 1 for an immediate rotation or a value smaller than 1 for gradual rotation.
+        :param desired_roll: Set desired roll value.
+        """
+        x, y, z = vector
+        # Prevent division by zero
+        if x == 0 and z == 0 and y == 0:
+            print("Error: Zero-length vector provided for rotation.")
+            return None
+        target_yaw = math.degrees(math.atan2(x, -z))
+        horizontal_distance = math.sqrt(x**2 + z**2)
+        target_pitch = math.degrees(math.atan2(y, horizontal_distance))
+
+        obj.rotation[0] += (target_pitch - obj.rotation[0]) * factor
+        obj.rotation[1] += (target_yaw - obj.rotation[1]) * factor
+        obj.rotation[2] = desired_roll
+
+
+    class PreventMovingInsideObjects:
+        '''
+        With this class you can prevent an object from moving inside (clipping) an another object, including preventing camera from clipping inside objects.
+        '''
+        def __init__(self, object_to_affect, other_objects_list, step_size=0.01, max_correction_steps = 16):
+            '''
+            With this class you can prevent an object from moving inside an another object, including preventing camera from clipping inside objects. It is collission-based.
+            :param object_to_affect: The object that you do not want to move (clip) inside other objects, for example camera.
+            :param other_objects_list: List containing the other objects that you do not want the object to clip into.
+            :param step_size: Correction step size used to move the object out of the another, the lower the smoother the process will look.
+            :param max_correction_steps: Maximum steps of moving out of the another object.
+            '''
+            self.object_to_affect = object_to_affect
+            self.internal_object_list = other_objects_list
+            self.step_size = step_size
+            self.max_correction_steps = max_correction_steps
+            self.previous_valid_position = self.object_to_affect.position.copy()
+
+        def check_and_correct(self):
+            '''
+            Run the function which checks if the object_to_affect collided with any of the another_objects and then moves it away to prevent clipping.
+            This way you can prevent an object from moving inside an another object, including preventing camera from clipping inside objects.
+            '''
+            steps = 0 
+            while steps < self.max_correction_steps:
+                collision_detected = False
+                for other_object in self.internal_object_list:
+                    if self.object_to_affect.check_collision(other_object):
+                        collision_detected = True
+
+                        #Direction calculation
+                        dx = self.object_to_affect.position[0] - other_object.position[0]
+                        dy = self.object_to_affect.position[1] - other_object.position[1]
+                        dz = self.object_to_affect.position[2] - other_object.position[2]
+
+                        if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
+                            self.object_to_affect.position[0] += self.step_size if dx > 0 else -self.step_size
+                        elif abs(dy) >= abs(dx) and abs(dy) >= abs(dz):
+                            self.object_to_affect.position[1] += self.step_size if dy > 0 else -self.step_size
+                        else:
+                            self.object_to_affect.position[2] += self.step_size if dz > 0 else -self.step_size
+                        break
+
+                if collision_detected == False:
+                    self.previous_valid_position = self.object_to_affect.position.copy()
+                    return None
+                steps += 1
+            self.object_to_affect.position = self.previous_valid_position.copy()
+            return None
+
     class FPS_Limiter:
         """
         Allows to limit frames per second and program's speed in a consistent way, ensuring same top execution speed on all devices.
         """
         def __init__(self, max_fps: int):
             """
-            :param max_fps: Maximum frames per second, I recommend 30, 50 or 60
+            :param max_fps: Maximum frames per second, recommended 30, 50 or 60
             """
             self.max_fps = max_fps
             self.first_time_reading = 0.0
@@ -609,7 +706,14 @@ class RenderBirdCore:
                 if current_time - self.first_time_reading >= wait:
                     break
 
-
+    def MoveObjectAlongVector(self, obj, vector, factor=1.0):
+        '''
+        Move an object along a vector (for example a bullet along camera's forward vector).
+        :param obj: The object to move (translate)
+        :param vector: 3D vector, a tuple of 3 values, for example (0.1, 0.2, 0.3)
+        :param factor: A value to multiply each element of the vector by, use it to change movement speed.
+        '''
+        obj.translate(float(vector[0]*factor),float(vector[1]*factor),float(vector[2]*factor))
 
     #3D Objects:
                 
@@ -1081,6 +1185,125 @@ class RenderBirdCore:
             self.rotate()
 
 
+    class TexturedRectangularPrism(RectangularPrism):
+        def __init__(self, width, height, depth, position=(0, 0, 0), rotation=(0, 0, 0),
+                     texture_front=None, texture_back=None, texture_left=None, texture_right=None, texture_top=None, texture_bottom=None):
+            """
+            Initialize a TexturedRectangularPrism.
+
+            :param width: Width of the prism.
+            :param height: Height of the prism.
+            :param depth: Depth of the prism.
+            :param position: 3D position of the prism.
+            :param rotation: 3D rotation of the prism (pitch, yaw, roll).
+            Another parameters are textures for each side, which can either be file paths, PIL image variables or tuples for plain colors.
+            """
+            self.width = width
+            self.height = height
+            self.depth = depth
+            self.position = list(position)
+            self.rotation = list(rotation)
+            self.textures = self.create_texture_dict(texture_front, texture_back, texture_left, texture_right, texture_top, texture_bottom)
+            self.texture_ids = {}
+            self.load_textures()
+
+        def create_texture_dict(self,texture_front=None, texture_back=None, texture_left=None, texture_right=None, texture_top=None, texture_bottom=None):
+            '''
+            This function creates a valid dictionary with textures for the rendered to use.
+            '''
+            list1 = [texture_front, texture_back, texture_left, texture_right, texture_top, texture_bottom]
+            list2 = []
+            for i in list1:
+                if isinstance(i, str) and os.path.isfile(i):
+                    img = Image.open(i)
+                    imgc = img.convert('RGBA')
+                    list2.append(imgc)
+                elif isinstance(i, Image.Image):
+                    list2.append(i)
+                elif isinstance(i, tuple):
+                    try:
+                        list2.append(Image.new("RGBA", (2, 2), i))
+                    except:
+                        imgn = Image.new("RGB", (2, 2), i)
+                        imgnc = imgn.convert('RGBA')
+                        list2.append(imgnc)
+                else:
+                    list2.append(Image.new("RGBA", (2, 2), (0,0,0,0)))
+            del list1
+            textures = {
+            'front': list2[0],
+            'back': list2[1],
+            'left': list2[2],
+            'right': list2[3],
+            'top': list2[4],
+            'bottom': list2[5]
+            }
+            return textures
+
+        def load_textures(self):
+            """Load and bind textures for each side of the prism."""
+            for side, image in self.textures.items():
+                if image:
+                    texture_id = glGenTextures(1)
+                    glBindTexture(GL_TEXTURE_2D, texture_id)
+
+                    image = image.convert("RGBA")
+                    img_data = image.tobytes("raw", "RGBA", 0, -1)
+
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+                    self.texture_ids[side] = texture_id
+
+        def draw(self):
+            """Render the textured rectangular prism."""
+            half_width = self.width / 2
+            half_height = self.height / 2
+            half_depth = self.depth / 2
+
+            # Define vertices for each face
+            vertices = {
+                'front': [(half_width, -half_height, -half_depth), (half_width, half_height, -half_depth),
+                          (-half_width, half_height, -half_depth), (-half_width, -half_height, -half_depth)],
+                'back': [(half_width, -half_height, half_depth), (half_width, half_height, half_depth),
+                         (-half_width, half_height, half_depth), (-half_width, -half_height, half_depth)],
+                'left': [(-half_width, -half_height, -half_depth), (-half_width, half_height, -half_depth),
+                         (-half_width, half_height, half_depth), (-half_width, -half_height, half_depth)],
+                'right': [(half_width, -half_height, -half_depth), (half_width, half_height, -half_depth),
+                          (half_width, half_height, half_depth), (half_width, -half_height, half_depth)],
+                'top': [(-half_width, half_height, -half_depth), (half_width, half_height, -half_depth),
+                        (half_width, half_height, half_depth), (-half_width, half_height, half_depth)],
+                'bottom': [(-half_width, -half_height, -half_depth), (half_width, -half_height, -half_depth),
+                           (half_width, -half_height, half_depth), (-half_width, -half_height, half_depth)]
+            }
+
+            glPushMatrix()
+            glTranslatef(*self.position)
+            glRotatef(self.rotation[0], 1, 0, 0)
+            glRotatef(self.rotation[1], 0, 1, 0)
+            glRotatef(self.rotation[2], 0, 0, 1)
+
+            for side, verts in vertices.items():
+                texture_id = self.texture_ids.get(side)
+                if texture_id:
+                    glEnable(GL_TEXTURE_2D)
+                    glBindTexture(GL_TEXTURE_2D, texture_id)
+                else:
+                    glDisable(GL_TEXTURE_2D)
+
+                glBegin(GL_QUADS)
+                for i, vertex in enumerate(verts):
+                    glTexCoord2f(i % 2, i // 2)
+                    glVertex3fv(vertex)
+                glEnd()
+
+                if texture_id:
+                    glBindTexture(GL_TEXTURE_2D, 0)
+
+            glDisable(GL_TEXTURE_2D)
+            glPopMatrix()
+
 
     #2D Objects:
     
@@ -1527,3 +1750,67 @@ class RenderBirdCore:
                             break
                     if not found_channel:
                         self.is_playing[name] = False
+
+    #3D rendering methods:
+    def render_3d_objects(self, object_list):
+        """
+        Renders 3D objects by running draw() method for every object provided in object_list list.
+        """
+        for i in object_list:
+            if hasattr(i, 'draw'):
+                i.draw()
+                #print(str(time.time())+str(i))
+                
+    def render_visible_3d_objects(self,object_list,distance=20,angle=60):
+        """
+        Renders only 3D objects that are currently in the field of view, increasing rendering performance.
+        :param object_list: List of objects to take into account then rendering, for example [cube1, cube2].
+        :param distance: Rendering distance, default 20.
+        :param angle: Angle in degrees between object and camera's forward vector. By default 60, which works good in default field of view of the camera, but increase it in case of problems. 
+        """
+        visible_objects = self.camera.detect_objects_in_view(object_list,distance,angle)
+        self.render_3d_objects(visible_objects)
+         
+    #Asynchronous processing, functions and functionalities:
+        
+    class AsyncFunctionManager:
+        def __init__(self):
+            self.tasks = []
+    
+        async def start_async_function(self, async_function, *args):
+            """
+            Starts an asynchronous function and adds it to the list of tasks. Use the function itself and its arguments as arguments.
+            """
+            task = asyncio.create_task(async_function(*args))
+            self.tasks.append(task)
+            return task
+    
+        async def stop_async_function(self, task):
+            """
+            Cancels a specific running asynchronous function and waits for it to complete. Use the function itself as argument.
+            """
+            if task in self.tasks:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                self.tasks.remove(task)
+    
+        async def stop_all_async_functions(self):
+            """
+            Cancels all running asynchronous functions and waits for them to complete.
+            """
+            for task in self.tasks:
+                task.cancel()
+            await asyncio.gather(*self.tasks, return_exceptions=True)
+            self.tasks.clear()
+    
+        async def get_async_function_result(self, task):
+            """
+            Checks if the given asynchronous function task has finished and returns its result, or None if it hasn't finished yet. Use the function itself as argument.
+            """
+            if task.done():
+                try:
+                    return task.result()
+                except asyncio.CancelledError:
+                    return None
+            else:
+                return None

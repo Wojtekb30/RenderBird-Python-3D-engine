@@ -1,4 +1,4 @@
-#RenderBirdCore 0.1.4
+#RenderBirdCore 0.1.5
 #Created by Wojtekb30 (Wojciech B)
 import pygame
 from pygame.locals import *
@@ -21,7 +21,7 @@ class RenderBirdCore:
                  camera_minimum_render_distance=0.1, camera_maximum_render_distance=50.0,
                  camera_hitbox_width=0.5, camera_hitbox_height=0.5,camera_hitbox_depth=0.5):
         pygame.init()
-        RENDERBIRD_VERSION = "0.1.4"
+        RENDERBIRD_VERSION = "0.1.5"
         self.window_size_x = window_size_x
         self.window_size_y = window_size_y
         self.screen = pygame.display.set_mode((self.window_size_x, self.window_size_y), DOUBLEBUF | OPENGL)

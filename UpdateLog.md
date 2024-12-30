@@ -18,3 +18,12 @@ Version 0.1.3:
 - Added variant of 2D image which is loaded from a PIL Image variable not file.
 - Model3D_STL now supports texture from a PIL image variable too.
 - Fixed use_mouse_camera_controls() method of the Camera which allows to look around with mouse, like in first-person videogames.
+
+Version 0.1.4:
+- Added class PreventMovingInsideObjects which allows to prevent an object from moving inside (clipping into) another objects. This includes the camera.
+- Camera now has collission detection and a hitbox.
+- Renamed Camera's class from "Camera" to "Camera_class". This will be less confusing than unusable "Camera" and usable object of "camera".
+- Added a function (method) to move an object alongside a direction vector with certain speed factor. You can use this to for example make a bullet fly in direction player is currently facing.
+- Added a similar function (method) to rotate an object to match rotation of a vector.
+- Added textured rectangular prism, which can have (even transparent) images as sides. You can use PIL image variable, load image from path or still use a plain color.
+- Added a class for easy management of asynchronous functions. It allows to start, stop and read status and results of async functions.
