@@ -1184,6 +1184,127 @@ class RenderBirdCore:
             """Applies continuous rotation based on current rotation angles."""
             self.rotate()
 
+
+    class TexturedRectangularPrism(RectangularPrism):
+        def __init__(self, width, height, depth, position=(0, 0, 0), rotation=(0, 0, 0),
+                     texture_front=None, texture_back=None, texture_left=None, texture_right=None, texture_top=None, texture_bottom=None):
+            """
+            Initialize a TexturedRectangularPrism.
+
+            :param width: Width of the prism.
+            :param height: Height of the prism.
+            :param depth: Depth of the prism.
+            :param position: 3D position of the prism.
+            :param rotation: 3D rotation of the prism (pitch, yaw, roll).
+            Another parameters are textures for each side, which can either be file paths, PIL image variables or tuples for plain colors.
+            """
+            self.width = width
+            self.height = height
+            self.depth = depth
+            self.position = list(position)
+            self.rotation = list(rotation)
+            self.textures = self.create_texture_dict(texture_front, texture_back, texture_left, texture_right, texture_top, texture_bottom)
+            self.texture_ids = {}
+            self.load_textures()
+
+        def create_texture_dict(self,texture_front=None, texture_back=None, texture_left=None, texture_right=None, texture_top=None, texture_bottom=None):
+            '''
+            This function creates a valid dictionary with textures for the rendered to use.
+            '''
+            list1 = [texture_front, texture_back, texture_left, texture_right, texture_top, texture_bottom]
+            list2 = []
+            for i in list1:
+                if isinstance(i, str) and os.path.isfile(i):
+                    img = Image.open(i)
+                    imgc = img.convert('RGBA')
+                    list2.append(imgc)
+                elif isinstance(i, Image.Image):
+                    list2.append(i)
+                elif isinstance(i, tuple):
+                    try:
+                        list2.append(Image.new("RGBA", (2, 2), i))
+                    except:
+                        imgn = Image.new("RGB", (2, 2), i)
+                        imgnc = imgn.convert('RGBA')
+                        list2.append(imgnc)
+                else:
+                    list2.append(Image.new("RGBA", (2, 2), (0,0,0,0)))
+            del list1
+            textures = {
+            'front': list2[0],
+            'back': list2[1],
+            'left': list2[2],
+            'right': list2[3],
+            'top': list2[4],
+            'bottom': list2[5]
+            }
+            return textures
+
+        def load_textures(self):
+            """Load and bind textures for each side of the prism."""
+            for side, image in self.textures.items():
+                if image:
+                    texture_id = glGenTextures(1)
+                    glBindTexture(GL_TEXTURE_2D, texture_id)
+
+                    image = image.convert("RGBA")
+                    img_data = image.tobytes("raw", "RGBA", 0, -1)
+
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+                    self.texture_ids[side] = texture_id
+
+        def draw(self):
+            """Render the textured rectangular prism."""
+            half_width = self.width / 2
+            half_height = self.height / 2
+            half_depth = self.depth / 2
+
+            # Define vertices for each face
+            vertices = {
+                'front': [(half_width, -half_height, -half_depth), (half_width, half_height, -half_depth),
+                          (-half_width, half_height, -half_depth), (-half_width, -half_height, -half_depth)],
+                'back': [(half_width, -half_height, half_depth), (half_width, half_height, half_depth),
+                         (-half_width, half_height, half_depth), (-half_width, -half_height, half_depth)],
+                'left': [(-half_width, -half_height, -half_depth), (-half_width, half_height, -half_depth),
+                         (-half_width, half_height, half_depth), (-half_width, -half_height, half_depth)],
+                'right': [(half_width, -half_height, -half_depth), (half_width, half_height, -half_depth),
+                          (half_width, half_height, half_depth), (half_width, -half_height, half_depth)],
+                'top': [(-half_width, half_height, -half_depth), (half_width, half_height, -half_depth),
+                        (half_width, half_height, half_depth), (-half_width, half_height, half_depth)],
+                'bottom': [(-half_width, -half_height, -half_depth), (half_width, -half_height, -half_depth),
+                           (half_width, -half_height, half_depth), (-half_width, -half_height, half_depth)]
+            }
+
+            glPushMatrix()
+            glTranslatef(*self.position)
+            glRotatef(self.rotation[0], 1, 0, 0)
+            glRotatef(self.rotation[1], 0, 1, 0)
+            glRotatef(self.rotation[2], 0, 0, 1)
+
+            for side, verts in vertices.items():
+                texture_id = self.texture_ids.get(side)
+                if texture_id:
+                    glEnable(GL_TEXTURE_2D)
+                    glBindTexture(GL_TEXTURE_2D, texture_id)
+                else:
+                    glDisable(GL_TEXTURE_2D)
+
+                glBegin(GL_QUADS)
+                for i, vertex in enumerate(verts):
+                    glTexCoord2f(i % 2, i // 2)
+                    glVertex3fv(vertex)
+                glEnd()
+
+                if texture_id:
+                    glBindTexture(GL_TEXTURE_2D, 0)
+
+            glDisable(GL_TEXTURE_2D)
+            glPopMatrix()
+
+
     #2D Objects:
     
     class Rectangle_2D:
