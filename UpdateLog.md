@@ -28,3 +28,10 @@ Version 0.1.4:
 - Added textured rectangular prism, which can have (even transparent) images as sides. You can use PIL image variable, load image from path or still use a plain color.
 - Added a class for easy management of asynchronous functions. It allows to start, stop and read status and results of async functions.
 - Added a method which renders only 3D objects that are currently visible, which allows to increase performance.
+
+Version 0.1.5 (planned to release on January 2025):
+- Improve rendering of textures of Textured_RectangularPrism so they render normally.
+- Add more texturing methods for Model3D_STL.
+
+Version 0.1.6 (planned to release on January or February 2025):
+- Light/shading support and new related methods, funtions, objects and functionalities.
