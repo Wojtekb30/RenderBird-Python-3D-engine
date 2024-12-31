@@ -27,3 +27,4 @@ Version 0.1.4:
 - Added a similar function (method) to rotate an object to match rotation of a vector.
 - Added textured rectangular prism, which can have (even transparent) images as sides. You can use PIL image variable, load image from path or still use a plain color.
 - Added a class for easy management of asynchronous functions. It allows to start, stop and read status and results of async functions.
+- Added a method which renders only 3D objects that are currently visible, which allows to increase performance.

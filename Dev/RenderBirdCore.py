@@ -379,7 +379,7 @@ class RenderBirdCore:
             
         def check_collision(self, other):
             """
-            Checks if this rectangular prism collides with another rectangular prism using AABB.
+            Checks if the hitbox collides with something else using AABB.
             :param other: Another object with position, width, height, and depth attributes.
             :return: True if there is a collision, False otherwise.
             """
@@ -985,7 +985,9 @@ class RenderBirdCore:
 
     class Model3D_STL:
         def __init__(self, stl_path, texture_path=None, color=(1, 1, 1, 1),
-                     position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0), use_pil_texture = False, pil_image_variable = None):
+                     position=(0, 0, 0), scale=100.0, rotation=(0, 0, 0), use_pil_texture = False, pil_image_variable = None,
+                     texturing_mode = 0, texture_repetitions = 1,
+                     hitbox_height=1.0, hitbox_width=1.0, hitbox_depth=1.0):
             """
             Loads and renders a 3D model from an STL file with optional texture or plain color.
             :param stl_path: Path to the .STL 3D model file
@@ -996,7 +998,18 @@ class RenderBirdCore:
             :param rotation: Tuple determining how to rotate the 3D model in degrees.
             :param use_pil_texture: Default false, determines if the program should use texture from file or PIL image variable.
             :param pil_image_variable: Provide a PIL Image variable here (not file path).
+            :param texuring mode: Integer which determines how textures are rendered around object. Modes:
+            0 - Legacy
+            1 - Legacy with texture repetition
+            2 - Texture on every side
+            3 - Texture wrapped around model
+            :param texture_repetitions: How many times to repeat the texture, works in texturing modes 1 and 2.
             """
+            self.height = hitbox_height
+            self.width = hitbox_width
+            self.depth = hitbox_depth
+            self.tex_mode = texturing_mode
+            self.tex_repetitions = texture_repetitions
             self.stl_path = stl_path
             self.texture_path = texture_path
             self.color = color
@@ -1009,7 +1022,11 @@ class RenderBirdCore:
             self.texture_coords = []  
             self.texture_id = None
             self.use_pil_texture = use_pil_texture
-            self.pil_image_variable = pil_image_variable
+            
+            if pil_image_variable != None:
+                self.pil_image_variable = pil_image_variable.convert('RGBA')
+            else:
+                self.pil_image_variable = None
             
             self.load_model()
             self.generate_texture_coordinates()
@@ -1068,7 +1085,29 @@ class RenderBirdCore:
                 return [coord / length for coord in vector]
             return vector
 
-        def generate_texture_coordinates(self):
+        def calculate_normal(self, v1, v2, v3):
+            """
+            Calculates the normal vector of a triangle defined by vertices v1, v2, v3.
+            v1, v2, v3 are tuples or lists of three coordinates (x, y, z).
+            Returns a normalized vector.
+            """
+            
+            edge1 = (v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2])
+            edge2 = (v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2])
+
+            normal = (
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0],
+            )
+
+            
+            length = (normal[0]**2 + normal[1]**2 + normal[2]**2)**0.5
+            if length > 0:
+                normal = (normal[0] / length, normal[1] / length, normal[2] / length)
+            return normal
+
+        '''def generate_texture_coordinates(self): #original/legacy
             """
             Generates UV texture coordinates for the model.
             Maps vertices to a normalized space using the bounding box.
@@ -1084,7 +1123,84 @@ class RenderBirdCore:
             for vertex in self.vertices:
                 u = (vertex[0] - min_x) / (max_x - min_x) if max_x != min_x else 0
                 v = (vertex[1] - min_y) / (max_y - min_y) if max_y != min_y else 0
-                self.texture_coords.append((u, v))
+                self.texture_coords.append((u, v))'''
+        
+        '''def generate_texture_coordinates(self): #repeat
+            """
+            Generates UV texture coordinates for the model.
+            Maps vertices to a normalized space using the bounding box, allowing textures to repeat (wrap).
+            """
+            if not self.vertices:
+                raise ValueError("No vertices found. Make sure the model is loaded before generating texture coordinates.")
+
+            min_x = min(vertex[0] for vertex in self.vertices)
+            max_x = max(vertex[0] for vertex in self.vertices)
+            min_y = min(vertex[1] for vertex in self.vertices)
+            max_y = max(vertex[1] for vertex in self.vertices)
+
+            for vertex in self.vertices:
+                u = (vertex[0] - min_x) / (max_x - min_x) if max_x != min_x else 0
+                v = (vertex[1] - min_y) / (max_y - min_y) if max_y != min_y else 0
+
+                wrap_factor = self.tex_repetitions
+                u *= wrap_factor
+                v *= wrap_factor
+
+                self.texture_coords.append((u, v))'''         
+
+        def generate_texture_coordinates(self): #v3
+            """
+            Generates UV texture coordinates for the model.
+            Ensures consistent wrapping and rotation of the texture across all sides.
+            """
+            if not self.faces:
+                raise ValueError("No faces found. Make sure the model is loaded before generating texture coordinates.")
+
+            self.texture_coords = []
+
+            min_x = min(vertex[0] for vertex in self.vertices)
+            max_x = max(vertex[0] for vertex in self.vertices)
+            min_y = min(vertex[1] for vertex in self.vertices)
+            max_y = max(vertex[1] for vertex in self.vertices)
+            min_z = min(vertex[2] for vertex in self.vertices)
+            max_z = max(vertex[2] for vertex in self.vertices)
+
+            def normalize(value, min_val, max_val):
+                return (value - min_val) / (max_val - min_val) if max_val != min_val else 0
+
+            for face in self.faces:
+                v1, v2, v3 = [self.vertices[vertex_index] for vertex_index in face]
+                normal = self.calculate_normal(v1, v2, v3)
+                if abs(normal[0]) > abs(normal[1]) and abs(normal[0]) > abs(normal[2]):
+                    #Dominant X-axis (YZ plane)
+                    u_axis, v_axis = 1, 2
+                elif abs(normal[1]) > abs(normal[0]) and abs(normal[1]) > abs(normal[2]):
+                    #Dominant Y-axis (XZ plane)
+                    u_axis, v_axis = 0, 2
+                else:
+                    #Dominant Z-axis (XY plane)
+                    u_axis, v_axis = 0, 1
+
+                uv1 = (
+                    normalize(v1[u_axis], [min_x, min_y, min_z][u_axis], [max_x, max_y, max_z][u_axis]),
+                    normalize(v1[v_axis], [min_x, min_y, min_z][v_axis], [max_x, max_y, max_z][v_axis]),
+                )
+                uv2 = (
+                    normalize(v2[u_axis], [min_x, min_y, min_z][u_axis], [max_x, max_y, max_z][u_axis]),
+                    normalize(v2[v_axis], [min_x, min_y, min_z][v_axis], [max_x, max_y, max_z][v_axis]),
+                )
+                uv3 = (
+                    normalize(v3[u_axis], [min_x, min_y, min_z][u_axis], [max_x, max_y, max_z][u_axis]),
+                    normalize(v3[v_axis], [min_x, min_y, min_z][v_axis], [max_x, max_y, max_z][v_axis]),
+                )
+
+                wrap_factor = self.tex_repetitions
+                uv1 = (uv1[0] * wrap_factor, uv1[1] * wrap_factor)
+                uv2 = (uv2[0] * wrap_factor, uv2[1] * wrap_factor)
+                uv3 = (uv3[0] * wrap_factor, uv3[1] * wrap_factor)
+                
+                self.texture_coords.extend([uv1, uv2, uv3])
+
 
         def create_buffers(self):
             """
@@ -1102,6 +1218,40 @@ class RenderBirdCore:
             self.index_vbo = vbo.VBO(index_data, target=GL_ELEMENT_ARRAY_BUFFER)
 
         def load_texture(self):
+            """
+            Loads a texture image and binds it for OpenGL rendering with wrapping enabled.
+            """
+            try:
+                if self.texture_path and os.path.exists(self.texture_path):
+                    img = Image.open(self.texture_path).convert("RGBA")
+                elif self.use_pil_texture == True and self.pil_image_variable != None:
+                    img = self.pil_image_variable
+                else:
+                    img = Image.new('RGBA', (1, 1), color=self.color)
+        
+                img_data = img.tobytes("raw", "RGBA", 0, -1)
+                self.texture_id = glGenTextures(1)
+                glBindTexture(GL_TEXTURE_2D, self.texture_id)
+
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width, img.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+
+                glGenerateMipmap(GL_TEXTURE_2D)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+        # Enable texture wrapping
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+
+                glBindTexture(GL_TEXTURE_2D, 0)
+            except Exception as e:
+                self.texture_id = None
+                print("ERROR: Failed to load or set texture or color.")
+                print("Make sure that the texture file exists and/or color is a 4-number tuple (R G B and Transparency)")
+                print("Error code: "+str(e))
+
+
+        '''def load_texture(self): #original
             """
             Loads a texture image and binds it for OpenGL rendering.
             """
@@ -1129,7 +1279,7 @@ class RenderBirdCore:
                 self.texture_id = None
                 print("ERROR: Failed to load or set texture or color.")
                 print("Make sure that the texture file exists and/or color is a 4-number tuple (R G B and Transparency)")
-                print("Error code: "+str(e))
+                print("Error code: "+str(e))'''
 
         def draw(self):
             """
@@ -1183,6 +1333,18 @@ class RenderBirdCore:
         def update_rotation(self):
             """Applies continuous rotation based on current rotation angles."""
             self.rotate()
+            
+        def check_collision(self, other):
+            """
+            Checks if the hitbox collides with something else using AABB.
+            :param other: Another object with position, width, height, and depth attributes.
+            :return: True if there is a collision, False otherwise.
+            """
+            if (abs(self.position[0] - other.position[0]) < (self.width / 2 + other.width / 2) and
+                abs(self.position[1] - other.position[1]) < (self.height / 2 + other.height / 2) and
+                abs(self.position[2] - other.position[2]) < (self.depth / 2 + other.depth / 2)):
+                return True
+            return False
 
 
     class TexturedRectangularPrism(RectangularPrism):
@@ -1222,13 +1384,13 @@ class RenderBirdCore:
                     list2.append(i)
                 elif isinstance(i, tuple):
                     try:
-                        list2.append(Image.new("RGBA", (2, 2), i))
+                        list2.append(Image.new("RGBA", (1, 1), i))
                     except:
-                        imgn = Image.new("RGB", (2, 2), i)
+                        imgn = Image.new("RGB", (1, 1), i)
                         imgnc = imgn.convert('RGBA')
                         list2.append(imgnc)
                 else:
-                    list2.append(Image.new("RGBA", (2, 2), (0,0,0,0)))
+                    list2.append(Image.new("RGBA", (1, 1), (0,0,0,0)))
             del list1
             textures = {
             'front': list2[0],
@@ -1755,11 +1917,13 @@ class RenderBirdCore:
     def render_3d_objects(self, object_list):
         """
         Renders 3D objects by running draw() method for every object provided in object_list list.
+        Returns the provided object list.
         """
         for i in object_list:
             if hasattr(i, 'draw'):
                 i.draw()
                 #print(str(time.time())+str(i))
+        return object_list
                 
     def render_visible_3d_objects(self,object_list,distance=20,angle=60):
         """
@@ -1767,9 +1931,10 @@ class RenderBirdCore:
         :param object_list: List of objects to take into account then rendering, for example [cube1, cube2].
         :param distance: Rendering distance, default 20.
         :param angle: Angle in degrees between object and camera's forward vector. By default 60, which works good in default field of view of the camera, but increase it in case of problems. 
+        Returns list of objects that were rendered.
         """
         visible_objects = self.camera.detect_objects_in_view(object_list,distance,angle)
-        self.render_3d_objects(visible_objects)
+        return self.render_3d_objects(visible_objects)
          
     #Asynchronous processing, functions and functionalities:
         

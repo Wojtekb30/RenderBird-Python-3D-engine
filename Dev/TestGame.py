@@ -30,9 +30,9 @@ for i in range(0,1000):
     x+=1
     obiekty.append(r.RectangularPrism(width=1,depth=1,position=(x,y,-3),rotation=(0,0,0),color_sides=True,color_back=(255,0,0,1),color_bottom=(0,255,0,1),color_front=(0,0,255,1),color_left=(255,0,128,1)))
 
-anticollission = r.PreventMovingInsideObjects(r.camera,[cube])
+stl = r.Model3D_STL("cube.stl",None,(255,255,0,1),(0,0,-5),1,(0,0,0),1,Image.open("tex.bmp"),1,2,0.5,0.5,0.5)
 
-
+anticollission = r.PreventMovingInsideObjects(r.camera,[cube,stl])
 
 while r.running == True:
     fpslimit.code_start_point()
@@ -74,6 +74,7 @@ while r.running == True:
     if anticollission.check_and_correct():
         print(time.time())
     
+    stl.draw()
     r.update_display()
     r.handle_close_event_direct()
     fpslimit.code_end_point_limit_framerate()
