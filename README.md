@@ -23,6 +23,7 @@ Change/update log is available on GitHub in [UpdateLog.md](https://github.com/Wo
 ## Known Issues
 
 - **Performance with Complex STL Models**: Custom STL 3D models may exhibit poor performance if they are highly complex or have large textures. It is recommended to use low-poly models.
+- Broken texture rendering of TexturedRectangularPrism.
 
 ## Future Plans
 
